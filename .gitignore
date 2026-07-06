@@ -1,0 +1,7 @@
+.build/
+.codex/
+.DS_Store
+/EdgeNotesIcon.png
+outputs/*.app/
+dist/
+work/
