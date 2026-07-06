@@ -21,8 +21,6 @@
 
 EdgeNotes 是一个轻量的 macOS 侧边笔记工具。它常驻在屏幕左侧或右侧，需要时把鼠标移到边缘即可唤出，用文件夹和卡片管理零散想法、任务和临时记录。
 
-![EdgeNotes panel](docs/preview.png)
-
 ## 特性
 
 - **边缘唤出**：将面板固定到屏幕左侧或右侧，靠近屏幕边缘即可快速打开。
@@ -31,6 +29,14 @@ EdgeNotes 是一个轻量的 macOS 侧边笔记工具。它常驻在屏幕左侧
 - **主题系统**：内置多套 `.edgetheme` 主题，随应用一起打包。
 - **本地优先**：笔记数据保存在本机，可选 GitHub Gist 自动备份。
 - **简洁菜单栏**：菜单栏只保留显示侧边栏、设置和退出。
+
+![EdgeNotes panel](docs/1.png)
+![EdgeNotes panel](docs/2.png)
+![EdgeNotes panel](docs/3.png)
+![EdgeNotes panel](docs/4.png)
+![EdgeNotes panel](docs/5.png)
+![EdgeNotes panel](docs/6.png)
+![EdgeNotes panel](docs/7.png)
 
 ## 下载
 
