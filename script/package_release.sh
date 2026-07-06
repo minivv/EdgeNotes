@@ -12,6 +12,6 @@ ZIP_PATH="$DIST_DIR/$APP_NAME-macOS.zip"
 rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR"
 COPYFILE_DISABLE=1 ditto -c -k --keepParent --norsrc "$APP_BUNDLE" "$ZIP_PATH"
-shasum -a 256 "$ZIP_PATH" > "$ZIP_PATH.sha256"
+(cd "$DIST_DIR" && shasum -a 256 "$APP_NAME-macOS.zip" > "$APP_NAME-macOS.zip.sha256")
 
 echo "$ZIP_PATH"
