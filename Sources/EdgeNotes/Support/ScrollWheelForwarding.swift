@@ -30,6 +30,8 @@ final class ScrollForwardingHostingView<Content: View>: NSHostingView<Content> {
 }
 
 final class ScrollWheelForwardingBackgroundView: NSView {
+  var onMouseDown: (() -> Void)?
+
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
     configure()
@@ -49,6 +51,14 @@ final class ScrollWheelForwardingBackgroundView: NSView {
 
   override func hitTest(_ point: NSPoint) -> NSView? {
     bounds.contains(point) ? self : nil
+  }
+
+  override func mouseDown(with event: NSEvent) {
+    onMouseDown?()
+  }
+
+  override func rightMouseDown(with event: NSEvent) {
+    onMouseDown?()
   }
 
   override func scrollWheel(with event: NSEvent) {

@@ -10,6 +10,7 @@ enum AppPreferences {
     static let menuBarIconVisible = "edgePanel.menuBarIconVisible"
     static let displaySpeed = "edgePanel.displaySpeed"
     static let hotEdgeEnabled = "edgePanel.hotEdgeEnabled"
+    static let panelCollapseTrigger = "edgePanel.collapseTrigger"
     static let hideOnOutsideClick = "edgePanel.hideOnOutsideClick"
     static let hideOnEmptyClick = "edgePanel.hideOnEmptyClick"
     static let panelPinned = "edgePanel.panelPinned"
@@ -42,5 +43,25 @@ enum AppPreferences {
 
   static var folderOpenMode: String {
     UserDefaults.standard.string(forKey: Key.folderOpenMode) ?? "single"
+  }
+
+  static var panelCollapseTrigger: PanelCollapseTrigger {
+    let rawValue = UserDefaults.standard.string(forKey: Key.panelCollapseTrigger)
+      ?? PanelCollapseTrigger.emptyClick.rawValue
+    return PanelCollapseTrigger(rawValue: rawValue) ?? .emptyClick
+  }
+}
+
+enum PanelCollapseTrigger: String, CaseIterable, Identifiable {
+  case mouseLeave
+  case emptyClick
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .mouseLeave: "鼠标离开"
+    case .emptyClick: "点击空白"
+    }
   }
 }

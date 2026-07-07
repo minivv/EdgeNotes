@@ -54,6 +54,7 @@ final class EdgePanelCoordinator: NSObject, ObservableObject {
     positionOpenBar()
     positionPanel()
     updatePanelRootView()
+    updateOutsideTrackingForCollapseTrigger()
   }
 
   func togglePanel() {
@@ -98,7 +99,7 @@ final class EdgePanelCoordinator: NSObject, ObservableObject {
     }
 
     openBarWindow?.orderOut(nil)
-    startOutsideTrackingTimer()
+    updateOutsideTrackingForCollapseTrigger()
 
     _ = store
   }
@@ -124,6 +125,11 @@ final class EdgePanelCoordinator: NSObject, ObservableObject {
   }
 
   func panelHoverChanged(_ isInside: Bool) {
+    guard usesMouseLeaveCollapse else {
+      cancelAutoHide()
+      return
+    }
+
     if isInside {
       cancelAutoHide()
     } else {
@@ -135,7 +141,26 @@ final class EdgePanelCoordinator: NSObject, ObservableObject {
     isPanelPinned.toggle()
     if isPanelPinned {
       cancelAutoHide()
+      stopOutsideTrackingTimer()
+    } else {
+      updateOutsideTrackingForCollapseTrigger()
     }
+  }
+
+  func collapseTriggerDidChange() {
+    cancelAutoHide()
+    updateOutsideTrackingForCollapseTrigger()
+  }
+
+  func hidePanelFromEmptyClick() {
+    guard !isPanelPinned,
+          notesPanelWindow?.isVisible == true
+    else { return }
+    hidePanel()
+  }
+
+  private var usesMouseLeaveCollapse: Bool {
+    AppPreferences.panelCollapseTrigger == .mouseLeave
   }
 
   private func showOpenBar() {
@@ -178,6 +203,7 @@ final class EdgePanelCoordinator: NSObject, ObservableObject {
   private func updatePanelRootView() {
     guard let store, let notesPanelWindow, let settingsCoordinator else { return }
     let side = EdgePanelSettings.side
+    notesPanelWindow.removeAllInteractiveRegions()
     notesPanelWindow.contentView = ScrollForwardingHostingView(
       rootView: PanelContainerView(
         side: side,
@@ -195,7 +221,7 @@ final class EdgePanelCoordinator: NSObject, ObservableObject {
   }
 
   private func scheduleAutoHide(after delay: TimeInterval? = nil) {
-    guard !isPanelPinned else { return }
+    guard !isPanelPinned, usesMouseLeaveCollapse else { return }
     hideWorkItem?.cancel()
     let workItem = DispatchWorkItem { [weak self] in
       Task { @MainActor [weak self] in
@@ -273,6 +299,9 @@ final class EdgePanelCoordinator: NSObject, ObservableObject {
 
     let mouseLocation = NSEvent.mouseLocation
     if notesPanelWindow.frame.contains(mouseLocation) {
+      if notesPanelWindow.isEmptyPanelArea(screenPoint: mouseLocation) {
+        hidePanel()
+      }
       return
     }
     if let openBarWindow, openBarWindow.frame.contains(mouseLocation) {
@@ -281,7 +310,23 @@ final class EdgePanelCoordinator: NSObject, ObservableObject {
     hidePanel()
   }
 
+  private func updateOutsideTrackingForCollapseTrigger() {
+    guard notesPanelWindow?.isVisible == true,
+          !isPanelPinned,
+          usesMouseLeaveCollapse
+    else {
+      stopOutsideTrackingTimer()
+      return
+    }
+
+    startOutsideTrackingTimer()
+  }
+
   private func startOutsideTrackingTimer() {
+    guard usesMouseLeaveCollapse else {
+      stopOutsideTrackingTimer()
+      return
+    }
     guard outsideTrackingTimer == nil else { return }
     mouseOutsideSince = nil
     outsideTrackingTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
@@ -299,6 +344,7 @@ final class EdgePanelCoordinator: NSObject, ObservableObject {
 
   private func trackMouseOutsidePanel() {
     guard !isPanelPinned,
+          usesMouseLeaveCollapse,
           let notesPanelWindow,
           notesPanelWindow.isVisible
     else {
@@ -307,7 +353,8 @@ final class EdgePanelCoordinator: NSObject, ObservableObject {
     }
 
     let mouseLocation = NSEvent.mouseLocation
-    if notesPanelWindow.frame.contains(mouseLocation) {
+    if notesPanelWindow.frame.contains(mouseLocation),
+       !notesPanelWindow.isEmptyPanelArea(screenPoint: mouseLocation) {
       mouseOutsideSince = nil
       return
     }
@@ -418,6 +465,7 @@ extension EdgePanelCoordinator: NSWindowDelegate {
       guard let self,
             notification.object as? NSWindow === self.notesPanelWindow
       else { return }
+      guard self.usesMouseLeaveCollapse else { return }
       self.scheduleAutoHide(after: 0.12)
     }
   }
@@ -426,6 +474,39 @@ extension EdgePanelCoordinator: NSWindowDelegate {
 final class EdgePanelWindow: NSPanel {
   override var canBecomeKey: Bool { true }
   override var canBecomeMain: Bool { true }
+  private var interactiveRegions: [String: NSRect] = [:]
+
+  func setInteractiveRegion(id: String, rect: NSRect?) {
+    if let rect {
+      interactiveRegions[id] = rect
+    } else {
+      interactiveRegions.removeValue(forKey: id)
+    }
+  }
+
+  func removeAllInteractiveRegions() {
+    interactiveRegions.removeAll()
+  }
+
+  func isEmptyPanelArea(screenPoint: NSPoint) -> Bool {
+    guard frame.contains(screenPoint),
+          let contentView
+    else { return false }
+
+    let windowPoint = convertPoint(fromScreen: screenPoint)
+    let contentPoint = contentView.convert(windowPoint, from: nil)
+    guard contentView.bounds.contains(contentPoint) else { return false }
+
+    if interactiveRegions.values.contains(where: { $0.insetBy(dx: -1, dy: -1).contains(windowPoint) }) {
+      return false
+    }
+
+    guard let hitView = contentView.hitTest(contentPoint) else {
+      return true
+    }
+
+    return hitView.edgeNotesIsEmptyPanelHitView()
+  }
 
   override func sendEvent(_ event: NSEvent) {
     if event.type == .scrollWheel,
@@ -435,5 +516,27 @@ final class EdgePanelWindow: NSPanel {
     }
 
     super.sendEvent(event)
+  }
+}
+
+private extension NSView {
+  func edgeNotesIsEmptyPanelHitView() -> Bool {
+    if self is ScrollWheelForwardingBackgroundView {
+      return true
+    }
+    if self is NSScroller {
+      return false
+    }
+    if edgeNotesBelongsToInlineMarkdownEditor {
+      return false
+    }
+    return true
+  }
+
+  var edgeNotesBelongsToInlineMarkdownEditor: Bool {
+    if let scrollView = self as? NSScrollView {
+      return scrollView.identifier?.rawValue == "EdgeNotesInlineMarkdownEditor"
+    }
+    return enclosingScrollView?.identifier?.rawValue == "EdgeNotesInlineMarkdownEditor"
   }
 }

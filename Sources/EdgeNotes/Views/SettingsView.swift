@@ -11,6 +11,7 @@ struct SettingsView: View {
   @AppStorage(EdgePanelSettings.Key.screenPreference) private var screenPreference = ScreenPreference.main.rawValue
   @AppStorage(AppPreferences.Key.displaySpeed) private var displaySpeed = "standard"
   @AppStorage(AppPreferences.Key.menuBarIconVisible) private var menuBarIconVisible = true
+  @AppStorage(AppPreferences.Key.panelCollapseTrigger) private var panelCollapseTrigger = PanelCollapseTrigger.emptyClick.rawValue
 
   @AppStorage(AppPreferences.Key.themeName) private var themeName = "Edge"
 
@@ -99,6 +100,21 @@ struct SettingsView: View {
           }
           .pickerStyle(.segmented)
           .frame(width: 160)
+        }
+      }
+
+      SettingsSection(title: "侧边栏收起") {
+        SettingsRow(title: "收起方式", detail: "未固定侧边栏时生效；点击空白或窗口外仍可手动收起。") {
+          Picker("", selection: $panelCollapseTrigger) {
+            ForEach(PanelCollapseTrigger.allCases) { trigger in
+              Text(trigger.title).tag(trigger.rawValue)
+            }
+          }
+          .pickerStyle(.segmented)
+          .frame(width: 180)
+          .onChange(of: panelCollapseTrigger) { _, _ in
+            panelCoordinator.collapseTriggerDidChange()
+          }
         }
       }
 

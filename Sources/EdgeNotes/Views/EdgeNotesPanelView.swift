@@ -32,6 +32,10 @@ struct EdgeNotesPanelView: View {
   @State private var noteDropTargetID: UUID?
   @State private var folderToReveal: UUID?
   @State private var noteToReveal: UUID?
+  @State private var folderContentHeight: CGFloat = 0
+  @State private var folderViewportHeight: CGFloat = 0
+  @State private var notesContentHeight: CGFloat = 0
+  @State private var notesViewportHeight: CGFloat = 0
   @FocusState private var focusedField: PanelFocus?
 
   private var theme: ThemePreset {
@@ -49,6 +53,14 @@ struct EdgeNotesPanelView: View {
   private var visibleNotesAllCollapsed: Bool {
     let notes = store.visibleNotes()
     return !notes.isEmpty && notes.allSatisfy(\.isCollapsed)
+  }
+
+  private var folderEmptyFillHeight: CGFloat {
+    max(0, folderViewportHeight - folderContentHeight)
+  }
+
+  private var notesEmptyFillHeight: CGFloat {
+    max(0, notesViewportHeight - notesContentHeight)
   }
 
   var body: some View {
@@ -147,6 +159,7 @@ struct EdgeNotesPanelView: View {
     .padding(.horizontal, 14)
     .frame(height: 64)
     .background(theme.background, in: RoundedRectangle(cornerRadius: 13))
+    .background(PanelInteractiveRegion(id: "panelHeader"))
   }
 
   @ViewBuilder
@@ -228,69 +241,81 @@ struct EdgeNotesPanelView: View {
   private var foldersView: some View {
     ScrollViewReader { proxy in
       ScrollView {
-        LazyVStack(spacing: 0) {
-          ForEach(filteredFolders) { folder in
-            CardHitRow {
-              FolderCard(
-                folder: folder,
-                count: store.notes.filter { $0.folderID == folder.id }.count,
-                theme: theme,
-                isEditing: editingFolderID == folder.id,
-                focusedField: $focusedField,
-                onOpen: {
-                  store.selectedFolderID = folder.id
-                  store.searchText = ""
-                  panelCoordinator.route = .notes
-                },
-                onRename: { name in
-                  store.renameFolder(folder.id, name: name)
-                },
-                onStartRename: {
-                  editingFolderID = folder.id
-                  focusedField = .folder(folder.id)
-                },
-                onFinishRename: {
-                  editingFolderID = nil
-                  focusedField = nil
-                },
-                onTogglePinned: {
-                  store.toggleFolderPinned(folder.id)
-                },
-                onDelete: {
-                  store.deleteFolder(folder.id)
-                }
-              )
-              .overlay(alignment: .top) {
-                if folderDropTargetID == folder.id {
-                  DropIndicator(color: theme.accent)
-                    .offset(y: -6)
+        VStack(spacing: 0) {
+          LazyVStack(spacing: 0) {
+            ForEach(filteredFolders) { folder in
+              CardHitRow(onEmptyClick: hidePanelFromEmptyClick) {
+                FolderCard(
+                  folder: folder,
+                  count: store.notes.filter { $0.folderID == folder.id }.count,
+                  theme: theme,
+                  isEditing: editingFolderID == folder.id,
+                  focusedField: $focusedField,
+                  onOpen: {
+                    store.selectedFolderID = folder.id
+                    store.searchText = ""
+                    panelCoordinator.route = .notes
+                  },
+                  onRename: { name in
+                    store.renameFolder(folder.id, name: name)
+                  },
+                  onStartRename: {
+                    editingFolderID = folder.id
+                    focusedField = .folder(folder.id)
+                  },
+                  onFinishRename: {
+                    editingFolderID = nil
+                    focusedField = nil
+                  },
+                  onTogglePinned: {
+                    store.toggleFolderPinned(folder.id)
+                  },
+                  onDelete: {
+                    store.deleteFolder(folder.id)
+                  }
+                )
+                .overlay(alignment: .top) {
+                  if folderDropTargetID == folder.id {
+                    DropIndicator(color: theme.accent)
+                      .offset(y: -6)
+                  }
                 }
               }
-            }
-            .id(folder.id)
-            .onDrag {
-              draggingFolderID = folder.id
-              return NSItemProvider(object: folder.id.uuidString as NSString)
-            }
-            .onDrop(
-              of: [UTType.plainText],
-              delegate: ReorderDropDelegate(
-                targetID: folder.id,
-                draggingID: $draggingFolderID,
-                dropTargetID: $folderDropTargetID,
-                move: { sourceID, targetID in
-                  store.moveFolder(sourceID: sourceID, before: targetID)
-                }
+              .id(folder.id)
+              .onDrag {
+                draggingFolderID = folder.id
+                return NSItemProvider(object: folder.id.uuidString as NSString)
+              }
+              .onDrop(
+                of: [UTType.plainText],
+                delegate: ReorderDropDelegate(
+                  targetID: folder.id,
+                  draggingID: $draggingFolderID,
+                  dropTargetID: $folderDropTargetID,
+                  move: { sourceID, targetID in
+                    store.moveFolder(sourceID: sourceID, before: targetID)
+                  }
+                )
               )
-            )
+            }
           }
+          .padding(.vertical, 4)
+          .frame(maxWidth: .infinity)
+          .background(PanelHeightReader<PanelContentHeightKey>())
+
+          emptyScrollFill(height: folderEmptyFillHeight)
         }
-        .padding(.vertical, 4)
         .frame(maxWidth: .infinity)
       }
       .scrollIndicators(showVerticalScrollbars ? .visible : .hidden)
-      .background(ScrollHitBackground())
+      .background(PanelHeightReader<PanelViewportHeightKey>())
       .contentShape(Rectangle())
+      .onPreferenceChange(PanelContentHeightKey.self) { height in
+        folderContentHeight = height
+      }
+      .onPreferenceChange(PanelViewportHeightKey.self) { height in
+        folderViewportHeight = height
+      }
       .onChange(of: folderToReveal) { _, folderID in
         guard let folderID else { return }
         withAnimation(.easeOut(duration: 0.18)) {
@@ -305,65 +330,77 @@ struct EdgeNotesPanelView: View {
 
     return ScrollViewReader { proxy in
       ScrollView {
-        LazyVStack(spacing: 0) {
-          if notes.isEmpty {
-            CardHitRow {
-              EmptyNotesCard(theme: theme) {
-                let noteID = store.createNote()
-                noteToReveal = noteID
-                focusedField = .noteTitle(noteID)
+        VStack(spacing: 0) {
+          LazyVStack(spacing: 0) {
+            if notes.isEmpty {
+              CardHitRow(onEmptyClick: hidePanelFromEmptyClick) {
+                EmptyNotesCard(theme: theme) {
+                  let noteID = store.createNote()
+                  noteToReveal = noteID
+                  focusedField = .noteTitle(noteID)
+                }
               }
             }
-          }
 
-          ForEach(notes) { note in
-            CardHitRow {
-              MarkdownNoteCard(
-                note: note,
-                theme: theme,
-                focusedField: $focusedField,
-                onTitleChange: { store.updateNote(note.id, title: $0) },
-                onBodyChange: { store.updateNote(note.id, body: $0) },
-                onToggleCollapsed: { store.toggleNoteCollapsed(note.id) },
-                onTogglePinned: { store.toggleNotePinned(note.id) },
-                onDelete: { store.deleteNote(note.id) },
-                onSetColor: { store.setNoteColor(note.id, color: $0) },
-                onToggleTask: { lineIndex in
-                  store.toggleTask(noteID: note.id, lineIndex: lineIndex)
-                },
-                tasks: store.taskLines(for: note)
-              )
-              .overlay(alignment: .top) {
-                if noteDropTargetID == note.id {
-                  DropIndicator(color: theme.accent)
-                    .offset(y: -6)
+            ForEach(notes) { note in
+              CardHitRow(onEmptyClick: hidePanelFromEmptyClick) {
+                MarkdownNoteCard(
+                  note: note,
+                  theme: theme,
+                  focusedField: $focusedField,
+                  onTitleChange: { store.updateNote(note.id, title: $0) },
+                  onBodyChange: { store.updateNote(note.id, body: $0) },
+                  onToggleCollapsed: { store.toggleNoteCollapsed(note.id) },
+                  onTogglePinned: { store.toggleNotePinned(note.id) },
+                  onDelete: { store.deleteNote(note.id) },
+                  onSetColor: { store.setNoteColor(note.id, color: $0) },
+                  onToggleTask: { lineIndex in
+                    store.toggleTask(noteID: note.id, lineIndex: lineIndex)
+                  },
+                  tasks: store.taskLines(for: note)
+                )
+                .overlay(alignment: .top) {
+                  if noteDropTargetID == note.id {
+                    DropIndicator(color: theme.accent)
+                      .offset(y: -6)
+                  }
                 }
               }
-            }
-            .id(note.id)
-            .onDrag {
-              draggingNoteID = note.id
-              return NSItemProvider(object: note.id.uuidString as NSString)
-            }
-            .onDrop(
-              of: [UTType.plainText],
-              delegate: ReorderDropDelegate(
-                targetID: note.id,
-                draggingID: $draggingNoteID,
-                dropTargetID: $noteDropTargetID,
-                move: { sourceID, targetID in
-                  store.moveNote(sourceID: sourceID, before: targetID)
-                }
+              .id(note.id)
+              .onDrag {
+                draggingNoteID = note.id
+                return NSItemProvider(object: note.id.uuidString as NSString)
+              }
+              .onDrop(
+                of: [UTType.plainText],
+                delegate: ReorderDropDelegate(
+                  targetID: note.id,
+                  draggingID: $draggingNoteID,
+                  dropTargetID: $noteDropTargetID,
+                  move: { sourceID, targetID in
+                    store.moveNote(sourceID: sourceID, before: targetID)
+                  }
+                )
               )
-            )
+            }
           }
+          .padding(.vertical, 4)
+          .frame(maxWidth: .infinity)
+          .background(PanelHeightReader<PanelContentHeightKey>())
+
+          emptyScrollFill(height: notesEmptyFillHeight)
         }
-        .padding(.vertical, 4)
         .frame(maxWidth: .infinity)
       }
       .scrollIndicators(showVerticalScrollbars ? .visible : .hidden)
-      .background(ScrollHitBackground())
+      .background(PanelHeightReader<PanelViewportHeightKey>())
       .contentShape(Rectangle())
+      .onPreferenceChange(PanelContentHeightKey.self) { height in
+        notesContentHeight = height
+      }
+      .onPreferenceChange(PanelViewportHeightKey.self) { height in
+        notesViewportHeight = height
+      }
       .onChange(of: noteToReveal) { _, noteID in
         guard let noteID else { return }
         withAnimation(.easeOut(duration: 0.18)) {
@@ -404,6 +441,19 @@ struct EdgeNotesPanelView: View {
       }
     } else if focusedField == .search {
       focusedField = nil
+    }
+  }
+
+  private func hidePanelFromEmptyClick() {
+    panelCoordinator.hidePanelFromEmptyClick()
+  }
+
+  @ViewBuilder
+  private func emptyScrollFill(height: CGFloat) -> some View {
+    if height > 0.5 {
+      ScrollWheelForwardingBackground(onMouseDown: hidePanelFromEmptyClick)
+        .frame(maxWidth: .infinity)
+        .frame(height: height)
     }
   }
 }
@@ -458,6 +508,7 @@ private struct FolderCard: View {
     .frame(height: 52)
     .background(theme.background, in: RoundedRectangle(cornerRadius: 8))
     .contentShape(RoundedRectangle(cornerRadius: 8))
+    .background(PanelInteractiveRegion(id: "folder-\(folder.id.uuidString)"))
     .onHover { isInside in
       withAnimation(.easeOut(duration: 0.14)) {
         isHovering = isInside
@@ -497,15 +548,17 @@ private struct FolderCard: View {
 
 private struct CardHitRow<Content: View>: View {
   var content: Content
+  var onEmptyClick: () -> Void
 
-  init(@ViewBuilder content: () -> Content) {
+  init(onEmptyClick: @escaping () -> Void, @ViewBuilder content: () -> Content) {
     self.content = content()
+    self.onEmptyClick = onEmptyClick
   }
 
   var body: some View {
     VStack(spacing: 0) {
       content
-      ScrollWheelForwardingBackground()
+      ScrollWheelForwardingBackground(onMouseDown: onEmptyClick)
         .frame(height: 10)
     }
     .frame(maxWidth: .infinity)
@@ -615,6 +668,7 @@ private struct MarkdownNoteCard: View {
     .background(theme.noteFill(for: note.color), in: RoundedRectangle(cornerRadius: 12))
     .shadow(color: .black.opacity(isHovering ? 0.10 : 0.06), radius: isHovering ? 6 : 3, x: 0, y: isHovering ? 3 : 1)
     .contentShape(RoundedRectangle(cornerRadius: 12))
+    .background(PanelInteractiveRegion(id: "note-\(note.id.uuidString)"))
     .onHover { isInside in
       withAnimation(.easeOut(duration: 0.14)) {
         isHovering = isInside
@@ -643,6 +697,7 @@ private struct EmptyNotesCard: View {
       .background(theme.background, in: RoundedRectangle(cornerRadius: 12))
     }
     .buttonStyle(.plain)
+    .background(PanelInteractiveRegion(id: "emptyNotesCard"))
   }
 }
 
@@ -663,6 +718,7 @@ private struct SearchField: View {
     .padding(.horizontal, 12)
     .frame(height: 38)
     .background(theme.card.opacity(0.72), in: RoundedRectangle(cornerRadius: 10))
+    .background(PanelInteractiveRegion(id: "searchField"))
     .onAppear {
       DispatchQueue.main.async {
         focusedField = .search
@@ -671,19 +727,127 @@ private struct SearchField: View {
   }
 }
 
-private struct ScrollHitBackground: View {
-  var body: some View {
-    ScrollWheelForwardingBackground()
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
+private struct ScrollWheelForwardingBackground: NSViewRepresentable {
+  var onMouseDown: () -> Void
+
+  func makeNSView(context: Context) -> NSView {
+    let view = ScrollWheelForwardingBackgroundView()
+    view.onMouseDown = onMouseDown
+    return view
+  }
+
+  func updateNSView(_ nsView: NSView, context: Context) {
+    guard let forwardingView = nsView as? ScrollWheelForwardingBackgroundView else { return }
+    forwardingView.onMouseDown = onMouseDown
   }
 }
 
-private struct ScrollWheelForwardingBackground: NSViewRepresentable {
-  func makeNSView(context: Context) -> NSView {
-    ScrollWheelForwardingBackgroundView()
+private struct PanelInteractiveRegion: NSViewRepresentable {
+  var id: String
+
+  func makeNSView(context: Context) -> PanelInteractiveRegionView {
+    let view = PanelInteractiveRegionView()
+    view.update(id: id)
+    return view
   }
 
-  func updateNSView(_ nsView: NSView, context: Context) {}
+  func updateNSView(_ nsView: PanelInteractiveRegionView, context: Context) {
+    nsView.update(id: id)
+  }
+
+  static func dismantleNSView(_ nsView: PanelInteractiveRegionView, coordinator: ()) {
+    nsView.unregister()
+  }
+}
+
+private final class PanelInteractiveRegionView: NSView {
+  private var regionID: String?
+  private weak var registeredWindow: EdgePanelWindow?
+
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    nil
+  }
+
+  func update(id: String) {
+    if regionID != id {
+      unregister()
+      regionID = id
+    }
+    reportRegion()
+  }
+
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    if window == nil {
+      unregister()
+    } else {
+      reportRegion()
+    }
+  }
+
+  override func layout() {
+    super.layout()
+    reportRegion()
+  }
+
+  override func setFrameOrigin(_ newOrigin: NSPoint) {
+    super.setFrameOrigin(newOrigin)
+    reportRegion()
+  }
+
+  override func setFrameSize(_ newSize: NSSize) {
+    super.setFrameSize(newSize)
+    reportRegion()
+  }
+
+  func unregister() {
+    guard let regionID else { return }
+    registeredWindow?.setInteractiveRegion(id: regionID, rect: nil)
+    registeredWindow = nil
+  }
+
+  private func reportRegion() {
+    guard let regionID,
+          let window = window as? EdgePanelWindow
+    else { return }
+
+    if registeredWindow !== window {
+      unregister()
+      registeredWindow = window
+    }
+
+    guard !bounds.isEmpty else {
+      window.setInteractiveRegion(id: regionID, rect: nil)
+      return
+    }
+
+    window.setInteractiveRegion(id: regionID, rect: convert(bounds, to: nil))
+  }
+}
+
+private struct PanelHeightReader<Key: PreferenceKey>: View where Key.Value == CGFloat {
+  var body: some View {
+    GeometryReader { proxy in
+      Color.clear
+        .preference(key: Key.self, value: proxy.size.height)
+    }
+  }
+}
+
+private struct PanelContentHeightKey: PreferenceKey {
+  static let defaultValue: CGFloat = 0
+
+  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+    value = nextValue()
+  }
+}
+
+private struct PanelViewportHeightKey: PreferenceKey {
+  static let defaultValue: CGFloat = 0
+
+  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+    value = nextValue()
+  }
 }
 
 private struct SmallIconButton: View {

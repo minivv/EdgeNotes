@@ -1,5 +1,6 @@
 .build/
 .codex/
+.codegraph/
 .DS_Store
 /EdgeNotesIcon.png
 outputs/*.app/
