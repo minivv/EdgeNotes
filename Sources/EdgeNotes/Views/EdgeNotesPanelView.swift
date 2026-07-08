@@ -42,6 +42,10 @@ struct EdgeNotesPanelView: View {
     ThemePreset.named(themeName)
   }
 
+  private var panelText: Color {
+    theme.headerText
+  }
+
   private var filteredFolders: [NoteFolder] {
     let query = folderSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !query.isEmpty else { return store.sortedFolders }
@@ -83,7 +87,7 @@ struct EdgeNotesPanelView: View {
     .padding(.horizontal, 9)
     .padding(.vertical, 10)
     .background(Color.clear)
-    .foregroundStyle(theme.text)
+    .foregroundStyle(panelText)
     .animation(.easeOut(duration: 0.16), value: searchVisible)
   }
 
@@ -96,7 +100,7 @@ struct EdgeNotesPanelView: View {
         } label: {
           Image(systemName: "chevron.left")
             .font(.system(size: 22, weight: .semibold))
-            .foregroundStyle(theme.accent)
+            .foregroundStyle(theme.headerAccent)
             .frame(width: 48, height: 44)
             .contentShape(Rectangle())
         }
@@ -169,14 +173,14 @@ struct EdgeNotesPanelView: View {
       HStack(spacing: 9) {
         Image(systemName: "folder")
           .font(.system(size: 22, weight: .semibold))
-          .foregroundStyle(theme.accent)
+          .foregroundStyle(theme.headerAccent)
         VStack(alignment: .leading, spacing: 1) {
           Text("文件夹")
             .font(.system(size: 20, weight: .bold))
             .lineLimit(1)
           Text("\(store.sortedFolders.count) 个文件夹")
             .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(theme.headerSecondaryText)
             .monospacedDigit()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -195,7 +199,7 @@ struct EdgeNotesPanelView: View {
       folderHeaderName
       Text("\(store.visibleNotes().count) 条笔记")
         .font(.system(size: 12, weight: .semibold))
-        .foregroundStyle(.secondary)
+        .foregroundStyle(theme.headerSecondaryText)
         .monospacedDigit()
     }
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -276,7 +280,7 @@ struct EdgeNotesPanelView: View {
                 )
                 .overlay(alignment: .top) {
                   if folderDropTargetID == folder.id {
-                    DropIndicator(color: theme.accent)
+                    DropIndicator(color: theme.folderAccent)
                       .offset(y: -6)
                   }
                 }
@@ -361,7 +365,7 @@ struct EdgeNotesPanelView: View {
                 )
                 .overlay(alignment: .top) {
                   if noteDropTargetID == note.id {
-                    DropIndicator(color: theme.accent)
+                    DropIndicator(color: theme.noteAccent(for: note.color))
                       .offset(y: -6)
                   }
                 }
@@ -473,11 +477,23 @@ private struct FolderCard: View {
 
   @State private var isHovering = false
 
+  private var cardText: Color {
+    theme.folderText
+  }
+
+  private var cardSecondaryText: Color {
+    theme.folderSecondaryText
+  }
+
+  private var cardAccent: Color {
+    theme.folderAccent
+  }
+
   var body: some View {
     HStack(spacing: 14) {
       Image(systemName: "folder")
         .font(.system(size: 22, weight: .medium))
-        .foregroundStyle(theme.accent)
+        .foregroundStyle(cardAccent)
         .frame(width: 32)
 
       folderName
@@ -485,14 +501,14 @@ private struct FolderCard: View {
       if folder.isPinned {
         Image(systemName: "pin.fill")
           .font(.system(size: 13, weight: .semibold))
-          .foregroundStyle(theme.accent)
+          .foregroundStyle(cardAccent)
       }
 
       Spacer(minLength: 8)
 
       Text("\(count)")
         .font(.system(size: 15, weight: .semibold))
-        .foregroundStyle(.secondary)
+        .foregroundStyle(cardSecondaryText)
         .monospacedDigit()
 
       if isHovering || isEditing {
@@ -506,7 +522,8 @@ private struct FolderCard: View {
     }
     .padding(.horizontal, 16)
     .frame(height: 52)
-    .background(theme.background, in: RoundedRectangle(cornerRadius: 8))
+    .foregroundStyle(cardText)
+    .background(theme.folderFill, in: RoundedRectangle(cornerRadius: 8))
     .contentShape(RoundedRectangle(cornerRadius: 8))
     .background(PanelInteractiveRegion(id: "folder-\(folder.id.uuidString)"))
     .onHover { isInside in
@@ -583,6 +600,22 @@ private struct MarkdownNoteCard: View {
   @State private var editorHeight: CGFloat = 100
   @State private var focusBodyAtStart = false
 
+  private var cardFill: Color {
+    theme.noteFill(for: note.color)
+  }
+
+  private var cardText: Color {
+    theme.noteText(for: note.color)
+  }
+
+  private var cardSecondaryText: Color {
+    theme.noteSecondaryText(for: note.color)
+  }
+
+  private var cardAccent: Color {
+    theme.noteAccent(for: note.color)
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(alignment: .center, spacing: 8) {
@@ -592,7 +625,8 @@ private struct MarkdownNoteCard: View {
         ))
         .font(.system(size: 18, weight: .bold))
         .textFieldStyle(.plain)
-        .tint(theme.accent)
+        .foregroundStyle(cardText)
+        .tint(cardAccent)
         .focused($focusedField, equals: .noteTitle(note.id))
         .onSubmit {
           focusBodyAtStart = true
@@ -602,7 +636,7 @@ private struct MarkdownNoteCard: View {
         if note.isPinned {
           Image(systemName: "pin.fill")
             .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(theme.accent)
+            .foregroundStyle(cardAccent)
         }
 
         Spacer(minLength: 8)
@@ -624,8 +658,8 @@ private struct MarkdownNoteCard: View {
             set: onBodyChange
           ),
           height: $editorHeight,
-          textColor: theme.text,
-          accentColor: theme.accent,
+          textColor: cardText,
+          accentColor: cardAccent,
           fontSize: 15,
           minHeight: 92,
           isFocused: focusedField == .noteBody(note.id),
@@ -636,13 +670,19 @@ private struct MarkdownNoteCard: View {
           documentId: note.id.uuidString,
           fitsContent: true
         )
+        .id("\(note.id.uuidString)-\(theme.name)-\(note.color.rawValue)")
 
         HStack(spacing: 8) {
           ForEach(NoteColor.allCases) { color in
             Button {
               onSetColor(color)
             } label: {
-              ColorSwatch(color: color, isSelected: color == note.color)
+              ColorSwatch(
+                color: color,
+                fillColor: theme.noteFill(for: color),
+                selectionColor: cardText,
+                isSelected: color == note.color
+              )
             }
             .buttonStyle(.plain)
             .help(color.displayName)
@@ -652,11 +692,11 @@ private struct MarkdownNoteCard: View {
 
           Text("创建 \(DisplayDate.date(note.createdAt))")
             .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(cardSecondaryText)
 
           Image(systemName: "line.3.horizontal")
             .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(cardSecondaryText)
             .help("拖动排序")
         }
         .frame(height: 24)
@@ -665,7 +705,8 @@ private struct MarkdownNoteCard: View {
     }
     .padding(16)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(theme.noteFill(for: note.color), in: RoundedRectangle(cornerRadius: 12))
+    .foregroundStyle(cardText)
+    .background(cardFill, in: RoundedRectangle(cornerRadius: 12))
     .shadow(color: .black.opacity(isHovering ? 0.10 : 0.06), radius: isHovering ? 6 : 3, x: 0, y: isHovering ? 3 : 1)
     .contentShape(RoundedRectangle(cornerRadius: 12))
     .background(PanelInteractiveRegion(id: "note-\(note.id.uuidString)"))
@@ -681,20 +722,29 @@ private struct EmptyNotesCard: View {
   var theme: ThemePreset
   var action: () -> Void
 
+  private var cardText: Color {
+    theme.folderText
+  }
+
+  private var cardSecondaryText: Color {
+    theme.folderSecondaryText
+  }
+
   var body: some View {
     Button(action: action) {
       VStack(spacing: 10) {
         Image(systemName: "square.and.pencil")
           .font(.system(size: 28, weight: .medium))
-          .foregroundStyle(theme.accent)
+          .foregroundStyle(theme.folderAccent)
         Text("创建第一条笔记")
           .font(.system(size: 17, weight: .bold))
         Text("标题写完按回车即可继续写正文。")
           .font(.system(size: 13, weight: .medium))
-          .foregroundStyle(.secondary)
+          .foregroundStyle(cardSecondaryText)
       }
       .frame(maxWidth: .infinity, minHeight: 158)
-      .background(theme.background, in: RoundedRectangle(cornerRadius: 12))
+      .foregroundStyle(cardText)
+      .background(theme.folderFill, in: RoundedRectangle(cornerRadius: 12))
     }
     .buttonStyle(.plain)
     .background(PanelInteractiveRegion(id: "emptyNotesCard"))
@@ -707,16 +757,25 @@ private struct SearchField: View {
   var theme: ThemePreset
   @FocusState.Binding var focusedField: PanelFocus?
 
+  private var fieldText: Color {
+    theme.readableText(on: theme.card)
+  }
+
+  private var fieldSecondaryText: Color {
+    fieldText.opacity(0.62)
+  }
+
   var body: some View {
     HStack(spacing: 8) {
       Image(systemName: "magnifyingglass")
-        .foregroundStyle(.secondary)
+        .foregroundStyle(fieldSecondaryText)
       TextField(placeholder, text: $text)
         .textFieldStyle(.plain)
         .focused($focusedField, equals: .search)
     }
     .padding(.horizontal, 12)
     .frame(height: 38)
+    .foregroundStyle(fieldText)
     .background(theme.card.opacity(0.72), in: RoundedRectangle(cornerRadius: 10))
     .background(PanelInteractiveRegion(id: "searchField"))
     .onAppear {
@@ -880,10 +939,14 @@ private struct PanelIconButtonStyle: ButtonStyle {
   var selected = false
 
   func makeBody(configuration: Configuration) -> some View {
+    let foreground = selected
+      ? theme.readableText(on: theme.headerAccent, preferred: theme.background, minimumContrast: 3.0)
+      : theme.headerAccent
+
     configuration.label
-      .foregroundStyle(selected ? theme.background : theme.accent)
+      .foregroundStyle(foreground)
       .frame(width: 32, height: 40)
-      .background(selected ? theme.accent : Color.clear, in: RoundedRectangle(cornerRadius: 10))
+      .background(selected ? theme.headerAccent : Color.clear, in: RoundedRectangle(cornerRadius: 10))
       .scaleEffect(configuration.isPressed ? 0.96 : 1)
       .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
   }

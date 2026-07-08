@@ -57,153 +57,153 @@
                 "colors": [
                     {
                         "textColor": "#2D2D2D",
-                        "secondaryTextColor": "#00000070",
-                        "backgroundColor": "#DAD0E0",
-                        "buttonColor": "#797979",
-                        "linkColor": "#1E878D",
-                        "header": {
-                            "textColor": "#1E878D"
-                        },
-                        "code": {
-                            "textColor": "#865D32"
-                        },
-                        "codeBlock": {
-                            "textColor": "#606060"
-                        },
-                        "quote": {
-                            "textColor": "#00000070"
-                        },
-                        "mark": {
-                            "backgroundColor": "#FFFAEC"
-                        },
-                        "filePreview": {
-                            "textColor": "#000000aa"
-                        }
+                    "secondaryTextColor": "#00000070",
+                    "backgroundColor": "#DAD0E0",
+                    "buttonColor": "#797979",
+                    "linkColor": "#1E878D",
+                    "header": {
+                        "textColor": "#1E878D"
+                    },
+                    "code": {
+                        "textColor": "#865D32"
+                    },
+                    "codeBlock": {
+                        "textColor": "#606060"
+                    },
+                    "quote": {
+                        "textColor": "#00000070"
+                    },
+                    "mark": {
+                        "backgroundColor": "#FFFAEC"
+                    },
+                    "filePreview": {
+                        "textColor": "#000000aa"
+                    }
                     },
                     {
                         "textColor": "#2D2D2D",
-                        "secondaryTextColor": "#00000070",
-                        "backgroundColor": "#FEF1D9",
-                        "buttonColor": "#797979",
-                        "linkColor": "#1E878D",
-                        "header": {
-                            "textColor": "#1E878D"
-                        },
-                        "code": {
-                            "textColor": "#865D32"
-                        },
-                        "codeBlock": {
-                            "textColor": "#606060"
-                        },
-                        "quote": {
-                            "textColor": "#00000070"
-                        },
-                        "mark": {
-                            "backgroundColor": "#ffffff"
-                        },
-                        "filePreview": {
-                            "textColor": "#000000aa"
-                        }
+                    "secondaryTextColor": "#00000070",
+                    "backgroundColor": "#FEF1D9",
+                    "buttonColor": "#797979",
+                    "linkColor": "#1E878D",
+                    "header": {
+                        "textColor": "#1E878D"
+                    },
+                    "code": {
+                        "textColor": "#865D32"
+                    },
+                    "codeBlock": {
+                        "textColor": "#606060"
+                    },
+                    "quote": {
+                        "textColor": "#00000070"
+                    },
+                    "mark": {
+                        "backgroundColor": "#ffffff"
+                    },
+                    "filePreview": {
+                        "textColor": "#000000aa"
+                    }
                     },
                     {
                         "textColor": "#2D2D2D",
-                        "secondaryTextColor": "#00000070",
-                        "backgroundColor": "#FFD7B1",
-                        "buttonColor": "#797979",
-                        "linkColor": "#ac5c08",
-                        "header": {
-                            "textColor": "#964f23"
-                        },
-                        "code": {
-                            "textColor": "#865D32"
-                        },
-                        "codeBlock": {
-                            "textColor": "#606060"
-                        },
-                        "quote": {
-                            "textColor": "#030303bf"
-                        },
-                        "mark": {
-                            "backgroundColor": "#FFFAEC"
-                        },
-                        "filePreview": {
-                            "textColor": "#000000aa"
-                        }
+                    "secondaryTextColor": "#00000070",
+                    "backgroundColor": "#FFD7B1",
+                    "buttonColor": "#797979",
+                    "linkColor": "#ac5c08",
+                    "header": {
+                        "textColor": "#964f23"
+                    },
+                    "code": {
+                        "textColor": "#865D32"
+                    },
+                    "codeBlock": {
+                        "textColor": "#606060"
+                    },
+                    "quote": {
+                        "textColor": "#030303bf"
+                    },
+                    "mark": {
+                        "backgroundColor": "#FFFAEC"
+                    },
+                    "filePreview": {
+                        "textColor": "#000000aa"
+                    }
                     },
                     {
                         "textColor": "#2D2D2D",
-                        "secondaryTextColor": "#00000070",
-                        "backgroundColor": "#E6ECBE",
-                        "buttonColor": "#797979",
-                        "linkColor": "#1E878D",
-                        "header": {
-                            "textColor": "#1E878D"
-                        },
-                        "code": {
-                            "textColor": "#865D32"
-                        },
-                        "codeBlock": {
-                            "textColor": "#606060"
-                        },
-                        "quote": {
-                            "textColor": "#00000070"
-                        },
-                        "mark": {
-                            "backgroundColor": "#FFFAEC"
-                        },
-                        "filePreview": {
-                            "textColor": "#000000aa"
-                        }
+                    "secondaryTextColor": "#00000070",
+                    "backgroundColor": "#E6ECBE",
+                    "buttonColor": "#797979",
+                    "linkColor": "#1E878D",
+                    "header": {
+                        "textColor": "#1E878D"
+                    },
+                    "code": {
+                        "textColor": "#865D32"
+                    },
+                    "codeBlock": {
+                        "textColor": "#606060"
+                    },
+                    "quote": {
+                        "textColor": "#00000070"
+                    },
+                    "mark": {
+                        "backgroundColor": "#FFFAEC"
+                    },
+                    "filePreview": {
+                        "textColor": "#000000aa"
+                    }
                     },
                     {
                         "textColor": "#2D2D2D",
-                        "secondaryTextColor": "#00000070",
-                        "backgroundColor": "#CBE4E7",
-                        "buttonColor": "#797979",
-                        "linkColor": "#1E878D",
-                        "header": {
-                            "textColor": "#1E878D"
-                        },
-                        "code": {
-                            "textColor": "#865D32"
-                        },
-                        "codeBlock": {
-                            "textColor": "#606060"
-                        },
-                        "quote": {
-                            "textColor": "#00000070"
-                        },
-                        "mark": {
-                            "backgroundColor": "#FFFAEC"
-                        },
-                        "filePreview": {
-                            "textColor": "#000000aa"
-                        }
+                    "secondaryTextColor": "#00000070",
+                    "backgroundColor": "#CBE4E7",
+                    "buttonColor": "#797979",
+                    "linkColor": "#1E878D",
+                    "header": {
+                        "textColor": "#1E878D"
+                    },
+                    "code": {
+                        "textColor": "#865D32"
+                    },
+                    "codeBlock": {
+                        "textColor": "#606060"
+                    },
+                    "quote": {
+                        "textColor": "#00000070"
+                    },
+                    "mark": {
+                        "backgroundColor": "#FFFAEC"
+                    },
+                    "filePreview": {
+                        "textColor": "#000000aa"
+                    }
                     },
                     {
                         "textColor": "#2D2D2D",
-                        "secondaryTextColor": "#00000070",
-                        "backgroundColor": "#FFC8B7",
-                        "buttonColor": "#797979",
-                        "linkColor": "#c8263e",
-                        "header": {
-                            "textColor": "#9f2a3c"
-                        },
-                        "code": {
-                            "textColor": "#865D32"
-                        },
-                        "codeBlock": {
-                            "textColor": "#606060"
-                        },
-                        "quote": {
-                            "textColor": "#a11227"
-                        },
-                        "mark": {
-                            "backgroundColor": "#FFFAEC"
-                        },
-                        "filePreview": {
-                            "textColor": "#000000aa"
-                        }
+                    "secondaryTextColor": "#00000070",
+                    "backgroundColor": "#FFC8B7",
+                    "buttonColor": "#797979",
+                    "linkColor": "#c8263e",
+                    "header": {
+                        "textColor": "#9f2a3c"
+                    },
+                    "code": {
+                        "textColor": "#865D32"
+                    },
+                    "codeBlock": {
+                        "textColor": "#606060"
+                    },
+                    "quote": {
+                        "textColor": "#a11227"
+                    },
+                    "mark": {
+                        "backgroundColor": "#FFFAEC"
+                    },
+                    "filePreview": {
+                        "textColor": "#000000aa"
+                    }
                     }
                 ]
             }

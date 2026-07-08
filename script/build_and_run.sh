@@ -42,15 +42,23 @@ for resource_bundle in "$(dirname "$BUILD_BINARY")"/"${APP_NAME}"_*.bundle; do
   cp -R "$resource_bundle" "$APP_RESOURCES/"
 done
 
+rm -rf "$APP_RESOURCES/themes"
+mkdir -p "$APP_RESOURCES/themes"
+
+copy_theme_file() {
+  local theme_file="$1"
+  [ -e "$theme_file" ] || return 0
+  local theme_name
+  theme_name="$(basename "$theme_file")"
+  theme_name="${theme_name%.edgetheme}"
+  theme_name="${theme_name%.sntheme}"
+  cp "$theme_file" "$APP_RESOURCES/themes/$theme_name.edgetheme"
+}
+
 if [ -d "$ROOT_DIR/themes" ]; then
-  rm -rf "$APP_RESOURCES/themes"
-  mkdir -p "$APP_RESOURCES/themes"
   for theme_file in "$ROOT_DIR"/themes/*.edgetheme "$ROOT_DIR"/themes/*.sntheme; do
     [ -e "$theme_file" ] || continue
-    theme_name="$(basename "$theme_file")"
-    theme_name="${theme_name%.edgetheme}"
-    theme_name="${theme_name%.sntheme}"
-    cp "$theme_file" "$APP_RESOURCES/themes/$theme_name.edgetheme"
+    copy_theme_file "$theme_file"
   done
 fi
 

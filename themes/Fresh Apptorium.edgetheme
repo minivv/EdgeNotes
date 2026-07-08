@@ -1,48 +1,45 @@
 {
     "$schema": "https:\/\/www.apptorium.com\/schemas\/sntheme.json",
     "any": {
+        "accentColor": "#644AD9",
         "systemAppearance": "light",
-        "accentColor": "#287CD6",
-        
         "iOS": {
             "windowBackgroundColor": "#eeece1"
         },
-        
         "folders": {
             "header": {
                 "backgroundColor": "#FFFDF1",
-                "buttonColor": "#287CD6",
-                "textColor": "#287CD6"
+                "buttonColor": "#644AD9",
+                "textColor": "#644AD9"
             },
             "list": {
                 "backgroundColor": "#FFFDF1",
-                "buttonColor": "#287CD6",
+                "buttonColor": "#644AD9",
                 "textColor": "#222222"
             },
-            "cleanFolderColor": "#287CD6"
+            "cleanFolderColor": "#644AD9"
         },
         "folder": {
             "backgroundColor": "#eeece1",
-            
             "header": {
                 "backgroundColor": "#FFFDF1",
-                "buttonColor": "#287CD6",
-                "textColor": "#287CD6"
+                "buttonColor": "#644AD9",
+                "textColor": "#644AD9"
             },
             "notes": {
                 "clean": {
                     "textColor": "#000000dd",
                     "secondaryTextColor": "#00000070",
                     "backgroundColor": "#FFFDF1",
-                    "buttonColor": "#287CD6",
+                    "buttonColor": "#644AD9",
                     "header": {
-                        "textColor": "#287CD6"
+                        "textColor": "#644AD9"
                     },
                     "code": {
-                        "textColor": "#6a1e2c"
+                        "textColor": "#644AD9"
                     },
                     "codeBlock": {
-                        "textColor": "#6a1e2c"
+                        "textColor": "#644AD9"
                     },
                     "quote": {
                         "textColor": "#00000070"

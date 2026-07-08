@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import SwiftUI
 
 struct ThemePreset: Identifiable, Hashable {
@@ -8,7 +9,16 @@ struct ThemePreset: Identifiable, Hashable {
   var card: Color
   var text: Color
   var accent: Color
+  var folderListBackground: Color?
+  var folderHeaderText: Color?
+  var folderHeaderButton: Color?
+  var folderListText: Color?
+  var folderListSecondaryText: Color?
+  var folderListButton: Color?
   var noteColors: [Color] = []
+  var noteTextColors: [Color?] = []
+  var noteSecondaryTextColors: [Color?] = []
+  var noteAccentColors: [Color?] = []
 
   static let arctic = ThemePreset(name: "Arctic", background: Color(red: 0.93, green: 0.97, blue: 1.00), card: .white, text: Color(red: 0.18, green: 0.22, blue: 0.25), accent: Color(red: 0.26, green: 0.52, blue: 0.68))
   static let classic = ThemePreset(name: "Classic", background: .white, card: .white, text: Color(red: 0.12, green: 0.12, blue: 0.13), accent: Color(red: 0.37, green: 0.64, blue: 0.82))
@@ -38,14 +48,7 @@ struct ThemePreset: Identifiable, Hashable {
   }
 
   func noteFill(for color: NoteColor) -> Color {
-    let index: Int? = switch color {
-    case .rose: 0
-    case .mint: 1
-    case .sky: 2
-    case .amber: 3
-    case .violet: 4
-    case .graphite: 5
-    }
+    let index = noteColorIndex(for: color)
 
     if let index,
        noteColors.indices.contains(index) {
@@ -68,6 +71,107 @@ struct ThemePreset: Identifiable, Hashable {
     }
   }
 
+  func noteText(for color: NoteColor) -> Color {
+    let preferred = noteColorValue(noteTextColors, for: color) ?? text
+    return readableText(on: noteFill(for: color), preferred: preferred)
+  }
+
+  func noteSecondaryText(for color: NoteColor) -> Color {
+    let fill = noteFill(for: color)
+    if let secondary = noteColorValue(noteSecondaryTextColors, for: color),
+       isReadable(secondary, on: fill, minimumContrast: 3.8) {
+      return secondary
+    }
+    return noteText(for: color).opacity(0.66)
+  }
+
+  func noteAccent(for color: NoteColor) -> Color {
+    let preferred = noteColorValue(noteAccentColors, for: color) ?? accent
+    return readableText(on: noteFill(for: color), preferred: preferred, minimumContrast: 3.0)
+  }
+
+  var headerText: Color {
+    readableText(on: background, preferred: folderHeaderText ?? text, minimumContrast: 4.0)
+  }
+
+  var headerSecondaryText: Color {
+    headerText.opacity(0.66)
+  }
+
+  var headerAccent: Color {
+    readableText(on: background, preferred: folderHeaderButton ?? accent, minimumContrast: 3.0)
+  }
+
+  var folderFill: Color {
+    folderListBackground ?? background
+  }
+
+  var folderText: Color {
+    readableText(on: folderFill, preferred: folderListText ?? text, minimumContrast: 4.0)
+  }
+
+  var folderSecondaryText: Color {
+    if let folderListSecondaryText,
+       isReadable(folderListSecondaryText, on: folderFill, minimumContrast: 3.0) {
+      return folderListSecondaryText
+    }
+    return folderText.opacity(0.66)
+  }
+
+  var folderAccent: Color {
+    readableText(on: folderFill, preferred: folderListButton ?? accent, minimumContrast: 3.0)
+  }
+
+  func readableText(on surface: Color, preferred: Color? = nil, minimumContrast: Double = 4.5) -> Color {
+    let preferred = preferred ?? text
+    guard let surfaceColor = resolvedSurfaceColor(surface),
+          let preferredColor = RGBAColor(preferred)
+    else { return preferred }
+
+    if preferredColor.contrastWhenDrawn(on: surfaceColor) >= minimumContrast {
+      return preferred
+    }
+
+    let black = RGBAColor(red: 0, green: 0, blue: 0, alpha: 1)
+    let white = RGBAColor(red: 1, green: 1, blue: 1, alpha: 1)
+    return black.contrastRatio(with: surfaceColor) >= white.contrastRatio(with: surfaceColor)
+      ? .black
+      : .white
+  }
+
+  private func resolvedSurfaceColor(_ surface: Color) -> RGBAColor? {
+    guard let surfaceColor = RGBAColor(surface) else { return nil }
+    guard surfaceColor.alpha < 1, let backgroundColor = RGBAColor(background) else {
+      return surfaceColor
+    }
+    return surfaceColor.composited(over: backgroundColor)
+  }
+
+  private func isReadable(_ foreground: Color, on surface: Color, minimumContrast: Double) -> Bool {
+    guard let surfaceColor = resolvedSurfaceColor(surface),
+          let foregroundColor = RGBAColor(foreground)
+    else { return true }
+    return foregroundColor.contrastWhenDrawn(on: surfaceColor) >= minimumContrast
+  }
+
+  private func noteColorIndex(for color: NoteColor) -> Int? {
+    switch color {
+    case .rose: 0
+    case .mint: 1
+    case .sky: 2
+    case .amber: 3
+    case .violet: 4
+    case .graphite: 5
+    }
+  }
+
+  private func noteColorValue(_ colors: [Color?], for color: NoteColor) -> Color? {
+    guard let index = noteColorIndex(for: color),
+          colors.indices.contains(index)
+    else { return nil }
+    return colors[index]
+  }
+
   private static func loadBundledThemes() -> [ThemePreset] {
     guard let themesURL = Bundle.main.resourceURL?.appendingPathComponent("themes", isDirectory: true),
           let urls = try? FileManager.default.contentsOfDirectory(
@@ -85,7 +189,7 @@ struct ThemePreset: Identifiable, Hashable {
   private static func loadTheme(from url: URL) -> ThemePreset? {
     guard let data = try? Data(contentsOf: url),
           let theme = try? JSONDecoder().decode(ExternalTheme.self, from: data),
-          let appearance = theme.any ?? theme.dark ?? theme.light
+          let appearance = theme.resolvedAppearance(prefersDark: prefersDarkAppearance)
     else { return nil }
 
     let name = sanitizeThemeName(url.deletingPathExtension().lastPathComponent)
@@ -96,28 +200,48 @@ struct ThemePreset: Identifiable, Hashable {
 
     return ThemePreset(
       name: name,
-      background: Color(hex: folderHeader?.backgroundColor, opaque: true)
-        ?? Color(hex: folderList?.backgroundColor, opaque: true)
-        ?? Color(hex: noteClean?.backgroundColor, opaque: true)
+      background: Color(hex: folderHeader?.backgroundColor)
+        ?? Color(hex: folderList?.backgroundColor)
+        ?? Color(hex: noteClean?.backgroundColor)
         ?? .black,
-      card: Color(hex: noteClean?.backgroundColor, opaque: true)
-        ?? Color(hex: folderList?.backgroundColor, opaque: true)
+      card: Color(hex: noteClean?.backgroundColor)
+        ?? Color(hex: folderList?.backgroundColor)
         ?? .black,
-      text: Color(hex: folderHeader?.textColor, opaque: true)
-        ?? Color(hex: folderList?.textColor, opaque: true)
-        ?? Color(hex: noteClean?.textColor, opaque: true)
+      text: Color(hex: noteClean?.textColor)
+        ?? Color(hex: folderList?.textColor)
+        ?? Color(hex: folderHeader?.textColor)
         ?? .white,
-      accent: Color(hex: folderHeader?.buttonColor, opaque: true)
-        ?? Color(hex: folderList?.buttonColor, opaque: true)
-        ?? Color(hex: appearance.folders?.cleanFolderColor, opaque: true)
-        ?? Color(hex: noteClean?.buttonColor, opaque: true)
+      accent: Color(hex: noteClean?.linkColor)
+        ?? Color(hex: noteClean?.buttonColor)
+        ?? Color(hex: noteClean?.header?.textColor)
+        ?? Color(hex: folderHeader?.buttonColor)
+        ?? Color(hex: folderList?.buttonColor)
+        ?? Color(hex: appearance.accentColor)
+        ?? Color(hex: appearance.folders?.cleanFolderColor)
         ?? .accentColor,
-      noteColors: noteColors.compactMap { Color(hex: $0.backgroundColor, opaque: true) }
+      folderListBackground: Color(hex: folderList?.backgroundColor),
+      folderHeaderText: Color(hex: folderHeader?.textColor),
+      folderHeaderButton: Color(hex: folderHeader?.buttonColor),
+      folderListText: Color(hex: folderList?.textColor),
+      folderListSecondaryText: Color(hex: folderList?.secondaryTextColor),
+      folderListButton: Color(hex: folderList?.buttonColor),
+      noteColors: noteColors.compactMap { Color(hex: $0.backgroundColor) },
+      noteTextColors: noteColors.map { Color(hex: $0.textColor) },
+      noteSecondaryTextColors: noteColors.map { Color(hex: $0.secondaryTextColor) },
+      noteAccentColors: noteColors.map {
+        Color(hex: $0.linkColor)
+          ?? Color(hex: $0.buttonColor)
+          ?? Color(hex: $0.header?.textColor)
+      }
     )
   }
 
   private static func sanitizeThemeName(_ name: String) -> String {
     name
+  }
+
+  private static var prefersDarkAppearance: Bool {
+    NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
   }
 }
 
@@ -125,33 +249,164 @@ private struct ExternalTheme: Decodable {
   var any: ExternalAppearance?
   var light: ExternalAppearance?
   var dark: ExternalAppearance?
+
+  func resolvedAppearance(prefersDark: Bool) -> ExternalAppearance? {
+    let preferred = prefersDark ? dark : light
+    if let preferred {
+      return any?.merged(with: preferred) ?? preferred
+    }
+    return any ?? dark ?? light
+  }
 }
 
 private struct ExternalAppearance: Decodable {
+  var systemAppearance: String?
+  var accentColor: String?
   var folders: ExternalFolders?
   var folder: ExternalFolder?
+
+  func merged(with override: ExternalAppearance) -> ExternalAppearance {
+    ExternalAppearance(
+      systemAppearance: override.systemAppearance ?? systemAppearance,
+      accentColor: override.accentColor ?? accentColor,
+      folders: folders.merged(with: override.folders),
+      folder: folder.merged(with: override.folder)
+    )
+  }
 }
 
 private struct ExternalFolders: Decodable {
   var header: ExternalColorSet?
   var list: ExternalColorSet?
   var cleanFolderColor: String?
+
+  func merged(with override: ExternalFolders) -> ExternalFolders {
+    ExternalFolders(
+      header: header.merged(with: override.header),
+      list: list.merged(with: override.list),
+      cleanFolderColor: override.cleanFolderColor ?? cleanFolderColor
+    )
+  }
 }
 
 private struct ExternalFolder: Decodable {
   var header: ExternalColorSet?
   var notes: ExternalNotes?
+
+  func merged(with override: ExternalFolder) -> ExternalFolder {
+    ExternalFolder(
+      header: header.merged(with: override.header),
+      notes: notes.merged(with: override.notes)
+    )
+  }
 }
 
 private struct ExternalNotes: Decodable {
   var clean: ExternalColorSet?
   var colors: [ExternalColorSet]?
+
+  func merged(with override: ExternalNotes) -> ExternalNotes {
+    ExternalNotes(
+      clean: clean.merged(with: override.clean),
+      colors: colors.merged(with: override.colors)
+    )
+  }
 }
 
 private struct ExternalColorSet: Decodable {
   var backgroundColor: String?
   var textColor: String?
+  var secondaryTextColor: String?
   var buttonColor: String?
+  var linkColor: String?
+  var header: ExternalTextRole?
+
+  func merged(with override: ExternalColorSet) -> ExternalColorSet {
+    ExternalColorSet(
+      backgroundColor: override.backgroundColor ?? backgroundColor,
+      textColor: override.textColor ?? textColor,
+      secondaryTextColor: override.secondaryTextColor ?? secondaryTextColor,
+      buttonColor: override.buttonColor ?? buttonColor,
+      linkColor: override.linkColor ?? linkColor,
+      header: header.merged(with: override.header)
+    )
+  }
+}
+
+private struct ExternalTextRole: Decodable {
+  var textColor: String?
+
+  func merged(with override: ExternalTextRole) -> ExternalTextRole {
+    ExternalTextRole(textColor: override.textColor ?? textColor)
+  }
+}
+
+private extension Optional where Wrapped == ExternalAppearance {
+  func merged(with override: ExternalAppearance?) -> ExternalAppearance? {
+    guard let override else { return self }
+    return self?.merged(with: override) ?? override
+  }
+}
+
+private extension Optional where Wrapped == ExternalFolders {
+  func merged(with override: ExternalFolders?) -> ExternalFolders? {
+    guard let override else { return self }
+    return self?.merged(with: override) ?? override
+  }
+}
+
+private extension Optional where Wrapped == ExternalFolder {
+  func merged(with override: ExternalFolder?) -> ExternalFolder? {
+    guard let override else { return self }
+    return self?.merged(with: override) ?? override
+  }
+}
+
+private extension Optional where Wrapped == ExternalNotes {
+  func merged(with override: ExternalNotes?) -> ExternalNotes? {
+    guard let override else { return self }
+    return self?.merged(with: override) ?? override
+  }
+}
+
+private extension Optional where Wrapped == ExternalColorSet {
+  func merged(with override: ExternalColorSet?) -> ExternalColorSet? {
+    guard let override else { return self }
+    return self?.merged(with: override) ?? override
+  }
+}
+
+private extension Optional where Wrapped == ExternalTextRole {
+  func merged(with override: ExternalTextRole?) -> ExternalTextRole? {
+    guard let override else { return self }
+    return self?.merged(with: override) ?? override
+  }
+}
+
+private extension Array where Element == ExternalColorSet {
+  func merged(with override: [ExternalColorSet]?) -> [ExternalColorSet] {
+    guard let override else { return self }
+    let count = Swift.max(self.count, override.count)
+    return (0..<count).compactMap { index in
+      switch (indices.contains(index) ? self[index] : nil, override.indices.contains(index) ? override[index] : nil) {
+      case let (base?, item?):
+        return base.merged(with: item)
+      case let (_, item?):
+        return item
+      case let (base?, nil):
+        return base
+      case (nil, nil):
+        return nil
+      }
+    }
+  }
+}
+
+private extension Optional where Wrapped == [ExternalColorSet] {
+  func merged(with override: [ExternalColorSet]?) -> [ExternalColorSet]? {
+    guard let override else { return self }
+    return self?.merged(with: override) ?? override
+  }
 }
 
 private extension Color {
@@ -190,47 +445,135 @@ private extension Color {
   }
 }
 
+private struct RGBAColor {
+  var red: Double
+  var green: Double
+  var blue: Double
+  var alpha: Double
+
+  init?(_ color: Color) {
+    guard let converted = NSColor(color).usingColorSpace(.sRGB) else {
+      return nil
+    }
+    red = Double(converted.redComponent)
+    green = Double(converted.greenComponent)
+    blue = Double(converted.blueComponent)
+    alpha = Double(converted.alphaComponent)
+  }
+
+  init(red: Double, green: Double, blue: Double, alpha: Double) {
+    self.red = red
+    self.green = green
+    self.blue = blue
+    self.alpha = alpha
+  }
+
+  func composited(over backdrop: RGBAColor) -> RGBAColor {
+    let outputAlpha = alpha + backdrop.alpha * (1 - alpha)
+    guard outputAlpha > 0 else {
+      return RGBAColor(red: 0, green: 0, blue: 0, alpha: 0)
+    }
+
+    return RGBAColor(
+      red: (red * alpha + backdrop.red * backdrop.alpha * (1 - alpha)) / outputAlpha,
+      green: (green * alpha + backdrop.green * backdrop.alpha * (1 - alpha)) / outputAlpha,
+      blue: (blue * alpha + backdrop.blue * backdrop.alpha * (1 - alpha)) / outputAlpha,
+      alpha: outputAlpha
+    )
+  }
+
+  func contrastWhenDrawn(on surface: RGBAColor) -> Double {
+    let drawnColor = alpha < 1 ? composited(over: surface) : self
+    return drawnColor.contrastRatio(with: surface)
+  }
+
+  func contrastRatio(with other: RGBAColor) -> Double {
+    let first = relativeLuminance
+    let second = other.relativeLuminance
+    return (max(first, second) + 0.05) / (min(first, second) + 0.05)
+  }
+
+  private var relativeLuminance: Double {
+    0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
+  }
+
+  private func linear(_ value: Double) -> Double {
+    value <= 0.03928
+      ? value / 12.92
+      : pow((value + 0.055) / 1.055, 2.4)
+  }
+}
+
 struct ThemeCard: View {
   var theme: ThemePreset
 
   var body: some View {
     RoundedRectangle(cornerRadius: 10)
-      .fill(theme.card)
-      .overlay(alignment: .topLeading) {
+      .fill(theme.background)
+      .overlay {
         VStack(alignment: .leading, spacing: 5) {
-          RoundedRectangle(cornerRadius: 2)
-            .fill(theme.accent)
-            .frame(width: 28, height: 5)
           HStack(spacing: 5) {
             RoundedRectangle(cornerRadius: 2)
-              .fill(theme.text.opacity(0.85))
-              .frame(width: 36, height: 4)
+              .fill(theme.headerAccent)
+              .frame(width: 25, height: 5)
             RoundedRectangle(cornerRadius: 2)
-              .fill(theme.accent.opacity(0.85))
-              .frame(width: 18, height: 4)
+              .fill(theme.headerText.opacity(0.55))
+              .frame(width: 30, height: 4)
           }
-          RoundedRectangle(cornerRadius: 2)
-            .fill(theme.text.opacity(0.85))
-            .frame(width: 70, height: 4)
-          HStack(spacing: 5) {
-            ForEach(Array(previewColors.enumerated()), id: \.offset) { _, color in
-              Circle()
-                .fill(color.opacity(0.85))
-                .frame(width: 5, height: 5)
+
+          HStack(alignment: .top, spacing: 6) {
+            previewCleanCard
+
+            VStack(alignment: .leading, spacing: 4) {
+              ForEach(Array(previewNoteColors.enumerated()), id: \.offset) { _, color in
+                previewNoteStrip(fill: color.fill, text: color.text, width: color.width)
+              }
             }
           }
-          .padding(.top, 2)
         }
-        .padding(10)
+        .padding(8)
       }
-      .background(theme.background, in: RoundedRectangle(cornerRadius: 10))
+      .clipShape(RoundedRectangle(cornerRadius: 10))
       .shadow(color: .black.opacity(0.08), radius: 3, x: 0, y: 1)
   }
 
-  private var previewColors: [Color] {
-    if !theme.noteColors.isEmpty {
-      return Array(theme.noteColors.prefix(6))
+  private var previewCleanCard: some View {
+    RoundedRectangle(cornerRadius: 4)
+      .fill(theme.card)
+      .frame(width: 36, height: 30)
+      .overlay(alignment: .leading) {
+        VStack(alignment: .leading, spacing: 4) {
+          RoundedRectangle(cornerRadius: 2)
+            .fill(theme.readableText(on: theme.card).opacity(0.88))
+            .frame(width: 22, height: 3)
+          RoundedRectangle(cornerRadius: 2)
+            .fill(theme.readableText(on: theme.card).opacity(0.48))
+            .frame(width: 27, height: 3)
+        }
+        .padding(.leading, 6)
+      }
+  }
+
+  private func previewNoteStrip(fill: Color, text: Color, width: CGFloat) -> some View {
+    RoundedRectangle(cornerRadius: 3)
+      .fill(fill)
+      .frame(width: width, height: 7)
+      .overlay(alignment: .leading) {
+        RoundedRectangle(cornerRadius: 2)
+          .fill(text.opacity(0.86))
+          .frame(width: max(12, width - 14), height: 2.5)
+          .padding(.leading, 5)
+      }
+  }
+
+  private var previewNoteColors: [(fill: Color, text: Color, width: CGFloat)] {
+    let noteColors = [NoteColor.rose, .mint, .sky].map { color in
+      (
+        fill: theme.noteFill(for: color),
+        text: theme.noteText(for: color),
+        width: color == .rose ? CGFloat(35) : CGFloat(29)
+      )
     }
-    return NoteColor.allCases.map(\.swatch)
+    return noteColors
   }
 }
