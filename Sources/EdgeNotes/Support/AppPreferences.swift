@@ -11,6 +11,7 @@ enum AppPreferences {
     static let displaySpeed = "edgePanel.displaySpeed"
     static let hotEdgeEnabled = "edgePanel.hotEdgeEnabled"
     static let panelCollapseTrigger = "edgePanel.collapseTrigger"
+    static let lastUpdateCheck = "updates.lastCheck"
     static let hideOnOutsideClick = "edgePanel.hideOnOutsideClick"
     static let hideOnEmptyClick = "edgePanel.hideOnEmptyClick"
     static let panelPinned = "edgePanel.panelPinned"

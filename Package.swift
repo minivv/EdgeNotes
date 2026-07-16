@@ -23,6 +23,11 @@ let package = Package(
       resources: [
         .process("Resources")
       ]
+    ),
+    .testTarget(
+      name: "EdgeNotesTests",
+      dependencies: ["EdgeNotes"],
+      path: "Tests/EdgeNotesTests"
     )
   ]
 )

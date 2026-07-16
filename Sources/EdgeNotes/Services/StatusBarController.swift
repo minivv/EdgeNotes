@@ -4,15 +4,18 @@ import AppKit
 final class StatusBarController: NSObject, NSMenuDelegate {
   private weak var panelCoordinator: EdgePanelCoordinator?
   private weak var settingsCoordinator: SettingsCoordinator?
+  private weak var updateService: AppUpdateService?
   private var statusItem: NSStatusItem?
   private let menu = NSMenu()
 
   func configure(
     panelCoordinator: EdgePanelCoordinator,
-    settingsCoordinator: SettingsCoordinator
+    settingsCoordinator: SettingsCoordinator,
+    updateService: AppUpdateService
   ) {
     self.panelCoordinator = panelCoordinator
     self.settingsCoordinator = settingsCoordinator
+    self.updateService = updateService
     menu.delegate = self
     NotificationCenter.default.addObserver(
       self,
@@ -56,8 +59,15 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
   private func rebuildMenu(_ menu: NSMenu) {
     menu.removeAllItems()
+    let versionItem = NSMenuItem(title: AppUpdateService.versionMenuTitle, action: nil, keyEquivalent: "")
+    versionItem.isEnabled = false
+    menu.addItem(versionItem)
+    menu.addItem(.separator())
     menu.addItem(menuItem("显示侧边栏", action: #selector(showPanel)))
+    menu.addItem(menuItem("检查更新", action: #selector(checkForUpdates)))
+    menu.addItem(menuItem("反馈问题", action: #selector(openFeedback)))
     menu.addItem(menuItem("设置", action: #selector(openSettings)))
+    menu.addItem(.separator())
     menu.addItem(menuItem("退出 EdgeNotes", action: #selector(quit)))
   }
 
@@ -77,6 +87,14 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
   @objc private func openSettings() {
     settingsCoordinator?.show()
+  }
+
+  @objc private func checkForUpdates() {
+    updateService?.checkForUpdates(manual: true)
+  }
+
+  @objc private func openFeedback() {
+    updateService?.openFeedback()
   }
 
   @objc private func quit() {

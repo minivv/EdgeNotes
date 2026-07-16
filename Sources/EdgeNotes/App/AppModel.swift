@@ -8,6 +8,7 @@ final class AppModel: ObservableObject {
   let onboardingCoordinator: OnboardingCoordinator
   let statusBarController: StatusBarController
   let settingsCoordinator: SettingsCoordinator
+  let updateService: AppUpdateService
 
   init() {
     store = NotesStore()
@@ -16,6 +17,7 @@ final class AppModel: ObservableObject {
     onboardingCoordinator = OnboardingCoordinator()
     statusBarController = StatusBarController()
     settingsCoordinator = SettingsCoordinator()
+    updateService = AppUpdateService()
 
     panelCoordinator.configure(store: store, settingsCoordinator: settingsCoordinator)
     backupService.configure(store: store)
@@ -28,11 +30,15 @@ final class AppModel: ObservableObject {
     onboardingCoordinator.configure(store: store, panelCoordinator: panelCoordinator)
     statusBarController.configure(
       panelCoordinator: panelCoordinator,
-      settingsCoordinator: settingsCoordinator
+      settingsCoordinator: settingsCoordinator,
+      updateService: updateService
     )
 
     DispatchQueue.main.async { [onboardingCoordinator] in
       onboardingCoordinator.showIfNeeded()
+    }
+    DispatchQueue.main.async { [updateService] in
+      updateService.checkForUpdatesIfNeeded()
     }
   }
 }

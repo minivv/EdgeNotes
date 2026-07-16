@@ -1,4 +1,5 @@
 import Combine
+import Darwin
 import Foundation
 import SwiftUI
 
@@ -19,10 +20,26 @@ final class NotesStore: ObservableObject {
   @Published private(set) var lastPersistenceError: String?
 
   private let storeURL: URL
+  private let fileMonitorQueue = DispatchQueue(
+    label: "com.edgenotes.notes-file-monitor",
+    qos: .userInitiated
+  )
+  private var directoryMonitor: DispatchSourceFileSystemObject?
+  private var fileMonitor: DispatchSourceFileSystemObject?
+  private var pendingReloadTask: Task<Void, Never>?
+  private var lastKnownStoreData: Data?
+  private var storeRevision: UInt = 0
 
   init(storeURL: URL = NotesStore.defaultStoreURL()) {
     self.storeURL = storeURL
     load()
+    startFileMonitoring()
+  }
+
+  deinit {
+    pendingReloadTask?.cancel()
+    directoryMonitor?.cancel()
+    fileMonitor?.cancel()
   }
 
   var dataDirectoryURL: URL {
@@ -335,6 +352,7 @@ final class NotesStore: ObservableObject {
       let decoder = JSONDecoder()
       decoder.dateDecodingStrategy = .iso8601
       let database = try decoder.decode(NotesDatabase.self, from: data)
+      lastKnownStoreData = data
       folders = database.folders
       notes = database.notes
       restoreSelectedFolder()
@@ -357,10 +375,127 @@ final class NotesStore: ObservableObject {
       encoder.dateEncodingStrategy = .iso8601
       let data = try encoder.encode(NotesDatabase(folders: folders, notes: notes))
       try data.write(to: storeURL, options: [.atomic])
+      lastKnownStoreData = data
+      storeRevision &+= 1
       lastPersistenceError = nil
     } catch {
       lastPersistenceError = error.localizedDescription
     }
+  }
+
+  private func startFileMonitoring() {
+    startDirectoryMonitorIfNeeded()
+    replaceFileMonitor()
+  }
+
+  private func startDirectoryMonitorIfNeeded() {
+    guard directoryMonitor == nil else { return }
+
+    let descriptor = open(storeURL.deletingLastPathComponent().path, O_EVTONLY)
+    guard descriptor >= 0 else { return }
+
+    let source = DispatchSource.makeFileSystemObjectSource(
+      fileDescriptor: descriptor,
+      eventMask: [.write, .delete, .rename, .revoke],
+      queue: fileMonitorQueue
+    )
+    source.setEventHandler { [weak self] in
+      DispatchQueue.main.async { [weak self] in
+        self?.fileSystemDidChange()
+      }
+    }
+    source.setCancelHandler {
+      close(descriptor)
+    }
+    directoryMonitor = source
+    source.resume()
+  }
+
+  private func replaceFileMonitor() {
+    fileMonitor?.cancel()
+    fileMonitor = nil
+
+    let descriptor = open(storeURL.path, O_EVTONLY)
+    guard descriptor >= 0 else { return }
+
+    let source = DispatchSource.makeFileSystemObjectSource(
+      fileDescriptor: descriptor,
+      eventMask: [.write, .extend, .attrib, .delete, .rename, .revoke],
+      queue: fileMonitorQueue
+    )
+    source.setEventHandler { [weak self] in
+      DispatchQueue.main.async { [weak self] in
+        self?.fileSystemDidChange()
+      }
+    }
+    source.setCancelHandler {
+      close(descriptor)
+    }
+    fileMonitor = source
+    source.resume()
+  }
+
+  private func fileSystemDidChange() {
+    // Atomic saves replace the file's inode, so reconnect the file watcher on every event.
+    replaceFileMonitor()
+    scheduleReloadFromDisk()
+  }
+
+  private func scheduleReloadFromDisk() {
+    pendingReloadTask?.cancel()
+    let expectedRevision = storeRevision
+    let url = storeURL
+
+    pendingReloadTask = Task { [weak self] in
+      do {
+        try await Task.sleep(for: .milliseconds(80))
+      } catch {
+        return
+      }
+
+      let result = await Task.detached(priority: .userInitiated) {
+        Result { try NotesStore.readSnapshot(at: url) }
+      }.value
+
+      guard let self,
+            !Task.isCancelled,
+            storeRevision == expectedRevision
+      else { return }
+
+      switch result {
+      case .success(let snapshot):
+        applyExternalSnapshot(snapshot)
+      case .failure(let error):
+        lastPersistenceError = "Unable to reload notes.json: \(error.localizedDescription)"
+      }
+    }
+  }
+
+  private func applyExternalSnapshot(_ snapshot: NotesStoreSnapshot) {
+    guard snapshot.data != lastKnownStoreData else {
+      lastPersistenceError = nil
+      return
+    }
+
+    lastKnownStoreData = snapshot.data
+    storeRevision &+= 1
+    folders = snapshot.database.folders
+    notes = snapshot.database.notes
+
+    if let selectedFolderID,
+       !folders.contains(where: { $0.id == selectedFolderID }) {
+      self.selectedFolderID = nil
+    }
+    selectFirstVisibleNoteIfNeeded()
+    lastPersistenceError = nil
+  }
+
+  nonisolated private static func readSnapshot(at url: URL) throws -> NotesStoreSnapshot {
+    let data = try Data(contentsOf: url)
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    let database = try decoder.decode(NotesDatabase.self, from: data)
+    return NotesStoreSnapshot(data: data, database: database)
   }
 
   private func seed() {
@@ -499,4 +634,9 @@ private struct NotesDatabase: Codable {
     self.folders = folders
     self.notes = notes
   }
+}
+
+private struct NotesStoreSnapshot {
+  var data: Data
+  var database: NotesDatabase
 }
