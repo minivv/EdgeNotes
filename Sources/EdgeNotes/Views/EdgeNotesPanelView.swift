@@ -21,6 +21,7 @@ struct EdgeNotesPanelView: View {
   @EnvironmentObject private var settingsCoordinator: SettingsCoordinator
 
   @AppStorage(AppPreferences.Key.themeName) private var themeName = "Edge"
+  @AppStorage(AppPreferences.Key.themeCustomizations) private var themeCustomizations = ""
   @AppStorage(AppPreferences.Key.showVerticalScrollbars) private var showVerticalScrollbars = true
 
   @State private var searchVisible = false
@@ -39,7 +40,7 @@ struct EdgeNotesPanelView: View {
   @FocusState private var focusedField: PanelFocus?
 
   private var theme: ThemePreset {
-    ThemePreset.named(themeName)
+    ThemePreset.named(themeName, customizationsData: themeCustomizations)
   }
 
   private var panelText: Color {
@@ -517,6 +518,7 @@ private struct FolderCard: View {
           SmallIconButton(systemName: folder.isPinned ? "pin.slash" : "pin", help: folder.isPinned ? "取消置顶" : "置顶", action: onTogglePinned)
           SmallIconButton(systemName: "trash", role: .destructive, help: "删除", action: onDelete)
         }
+        .foregroundStyle(cardAccent)
         .transition(.opacity.combined(with: .scale(scale: 0.92)))
       }
     }
@@ -547,6 +549,7 @@ private struct FolderCard: View {
       ))
       .font(.system(size: 17, weight: .semibold))
       .textFieldStyle(.plain)
+      .foregroundStyle(cardText)
       .focused($focusedField, equals: .folder(folder.id))
       .onSubmit(onFinishRename)
       .onExitCommand(perform: onFinishRename)
@@ -647,6 +650,7 @@ private struct MarkdownNoteCard: View {
             SmallIconButton(systemName: note.isPinned ? "pin.slash" : "pin", help: note.isPinned ? "取消置顶" : "置顶", action: onTogglePinned)
             SmallIconButton(systemName: "trash", role: .destructive, help: "删除", action: onDelete)
           }
+          .foregroundStyle(cardAccent)
           .transition(.opacity.combined(with: .scale(scale: 0.92)))
         }
       }
@@ -660,6 +664,9 @@ private struct MarkdownNoteCard: View {
           height: $editorHeight,
           textColor: cardText,
           accentColor: cardAccent,
+          toolbarBackgroundColor: theme.toolbarFill,
+          toolbarTextColor: theme.toolbarText,
+          toolbarAccentColor: theme.toolbarAccent,
           fontSize: 15,
           minHeight: 92,
           isFocused: focusedField == .noteBody(note.id),
@@ -670,8 +677,6 @@ private struct MarkdownNoteCard: View {
           documentId: note.id.uuidString,
           fitsContent: true
         )
-        .id("\(note.id.uuidString)-\(theme.name)-\(note.color.rawValue)")
-
         HStack(spacing: 8) {
           ForEach(NoteColor.allCases) { color in
             Button {
@@ -706,7 +711,19 @@ private struct MarkdownNoteCard: View {
     .padding(16)
     .frame(maxWidth: .infinity, alignment: .leading)
     .foregroundStyle(cardText)
-    .background(cardFill, in: RoundedRectangle(cornerRadius: 12))
+    .background {
+      if note.color == .graphite {
+        RoundedRectangle(cornerRadius: 12)
+          .fill(theme.card)
+          .overlay {
+            RoundedRectangle(cornerRadius: 12)
+              .fill(cardFill)
+          }
+      } else {
+        RoundedRectangle(cornerRadius: 12)
+          .fill(cardFill)
+      }
+    }
     .shadow(color: .black.opacity(isHovering ? 0.10 : 0.06), radius: isHovering ? 6 : 3, x: 0, y: isHovering ? 3 : 1)
     .contentShape(RoundedRectangle(cornerRadius: 12))
     .background(PanelInteractiveRegion(id: "note-\(note.id.uuidString)"))
@@ -758,7 +775,7 @@ private struct SearchField: View {
   @FocusState.Binding var focusedField: PanelFocus?
 
   private var fieldText: Color {
-    theme.readableText(on: theme.card)
+    theme.text
   }
 
   private var fieldSecondaryText: Color {
@@ -776,7 +793,7 @@ private struct SearchField: View {
     .padding(.horizontal, 12)
     .frame(height: 38)
     .foregroundStyle(fieldText)
-    .background(theme.card.opacity(0.72), in: RoundedRectangle(cornerRadius: 10))
+    .background(theme.card, in: RoundedRectangle(cornerRadius: 10))
     .background(PanelInteractiveRegion(id: "searchField"))
     .onAppear {
       DispatchQueue.main.async {
@@ -939,9 +956,7 @@ private struct PanelIconButtonStyle: ButtonStyle {
   var selected = false
 
   func makeBody(configuration: Configuration) -> some View {
-    let foreground = selected
-      ? theme.readableText(on: theme.headerAccent, preferred: theme.background, minimumContrast: 3.0)
-      : theme.headerAccent
+    let foreground = selected ? theme.background : theme.headerAccent
 
     configuration.label
       .foregroundStyle(foreground)

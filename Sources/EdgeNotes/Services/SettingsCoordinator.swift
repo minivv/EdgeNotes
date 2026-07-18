@@ -23,6 +23,7 @@ final class SettingsCoordinator: ObservableObject {
 
   func show() {
     guard let store, let backupService, let panelCoordinator, let onboardingCoordinator else { return }
+    panelCoordinator.showPinnedForSettingsPreview()
 
     if let window {
       window.makeKeyAndOrderFront(nil)
@@ -31,12 +32,13 @@ final class SettingsCoordinator: ObservableObject {
     }
 
     let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 760, height: 560),
-      styleMask: [.titled, .closable, .miniaturizable],
+      contentRect: NSRect(x: 0, y: 0, width: 820, height: 680),
+      styleMask: [.titled, .closable, .miniaturizable, .resizable],
       backing: .buffered,
       defer: false
     )
     window.title = "EdgeNotes 设置"
+    window.minSize = NSSize(width: 820, height: 640)
     window.center()
     window.isReleasedWhenClosed = false
     window.contentView = NSHostingView(

@@ -13,8 +13,6 @@ struct SettingsView: View {
   @AppStorage(AppPreferences.Key.menuBarIconVisible) private var menuBarIconVisible = true
   @AppStorage(AppPreferences.Key.panelCollapseTrigger) private var panelCollapseTrigger = PanelCollapseTrigger.emptyClick.rawValue
 
-  @AppStorage(AppPreferences.Key.themeName) private var themeName = "Edge"
-
   @AppStorage(AppPreferences.Key.newNoteLocation) private var newNoteLocation = "currentOrTop"
   @AppStorage(AppPreferences.Key.showVerticalScrollbars) private var showVerticalScrollbars = true
 
@@ -47,7 +45,10 @@ struct SettingsView: View {
       dataTab
         .tabItem { Label("数据", systemImage: "externaldrive") }
     }
-    .frame(width: 760, height: 600)
+    .frame(minWidth: 820, idealWidth: 820, minHeight: 640, idealHeight: 680)
+    .onAppear {
+      panelCoordinator.showPinnedForSettingsPreview()
+    }
   }
 
   private var generalTab: some View {
@@ -132,31 +133,7 @@ struct SettingsView: View {
   }
 
   private var appearanceTab: some View {
-    SettingsPage {
-      SettingsSection(title: "主题") {
-        LazyVGrid(columns: Array(repeating: GridItem(.fixed(108), spacing: 18), count: 5), spacing: 18) {
-          ForEach(ThemePreset.allCases) { theme in
-            Button {
-              themeName = theme.name
-            } label: {
-              VStack(spacing: 8) {
-                ThemeCard(theme: theme)
-                  .frame(width: 96, height: 58)
-                  .overlay {
-                    RoundedRectangle(cornerRadius: 10)
-                      .stroke(themeName == theme.name ? Color.accentColor : Color.black.opacity(0.10), lineWidth: themeName == theme.name ? 2.5 : 1)
-                  }
-                Text(theme.name)
-                  .font(.caption)
-                  .lineLimit(1)
-              }
-            }
-            .buttonStyle(.plain)
-          }
-        }
-        .padding(.vertical, 6)
-      }
-    }
+    ThemeSettingsView()
   }
 
   private var notesTab: some View {
@@ -321,7 +298,7 @@ struct SettingsView: View {
   }
 }
 
-private struct SettingsPage<Content: View>: View {
+struct SettingsPage<Content: View>: View {
   @ViewBuilder var content: Content
 
   var body: some View {
@@ -337,7 +314,7 @@ private struct SettingsPage<Content: View>: View {
   }
 }
 
-private struct SettingsSection<Content: View>: View {
+struct SettingsSection<Content: View>: View {
   var title: String
   @ViewBuilder var content: Content
 

@@ -10,6 +10,9 @@ struct InlineMarkdownEditor: View {
 
   var textColor: Color
   var accentColor: Color
+  var toolbarBackgroundColor: Color
+  var toolbarTextColor: Color
+  var toolbarAccentColor: Color
   var fontSize: CGFloat
   var minHeight: CGFloat
   var isFocused = false
@@ -25,6 +28,7 @@ struct InlineMarkdownEditor: View {
       fontSize: fontSize,
       documentId: documentId
     )
+    .id(editorAppearanceID)
     .frame(minHeight: minHeight, alignment: .topLeading)
     .background(
         InlineMarkdownFocusBridge(
@@ -32,6 +36,7 @@ struct InlineMarkdownEditor: View {
           isFocused: isFocused,
           focusAtStart: focusAtStart,
           onFocus: onFocus,
+          documentId: documentId,
           listIndentPerLevel: listIndentPerLevel
         )
       )
@@ -41,8 +46,9 @@ struct InlineMarkdownEditor: View {
         if let selectionToolbar {
           MarkdownSelectionToolbar(
             bus: toolbarBus,
-            accentColor: accentColor,
-            textColor: textColor
+            backgroundColor: toolbarBackgroundColor,
+            textColor: toolbarTextColor,
+            accentColor: toolbarAccentColor
           )
           .position(toolbarPosition(for: selectionToolbar.rect, in: proxy.size))
           .transition(.opacity.combined(with: .scale(scale: 0.94)))
@@ -71,6 +77,10 @@ struct InlineMarkdownEditor: View {
 
   private var listIndentPerLevel: CGFloat {
     20
+  }
+
+  private var editorAppearanceID: String {
+    [textColor.themeHex ?? "", accentColor.themeHex ?? ""].joined(separator: "|")
   }
 
   private var configuration: MarkdownEditorConfiguration {
@@ -113,7 +123,7 @@ struct InlineMarkdownEditor: View {
   }
 
   private func toolbarPosition(for rect: CGRect, in size: CGSize) -> CGPoint {
-    let toolbarWidth: CGFloat = 202
+    let toolbarWidth: CGFloat = 234
     let toolbarHeight: CGFloat = 34
     let margin: CGFloat = 6
     let x = min(
@@ -141,6 +151,47 @@ private struct MarkdownSelectionToolbarState: Equatable {
   var rect: CGRect
 }
 
+enum MarkdownTaskList {
+  static func replacement(in text: NSString, selectedRange: NSRange) -> (range: NSRange, text: String)? {
+    guard selectedRange.length > 0, NSMaxRange(selectedRange) <= text.length else { return nil }
+
+    let lineRange = text.lineRange(for: selectedRange)
+    let original = text.substring(with: lineRange) as NSString
+    let replacement = NSMutableString()
+    var offset = 0
+
+    while offset < original.length {
+      let range = original.lineRange(for: NSRange(location: offset, length: 0))
+      replacement.append(taskLine(from: original.substring(with: range)))
+      offset = NSMaxRange(range)
+    }
+
+    return (lineRange, replacement as String)
+  }
+
+  private static func taskLine(from line: String) -> String {
+    let hasNewline = line.hasSuffix("\n") || line.hasSuffix("\r")
+    let content = line.trimmingCharacters(in: .newlines)
+    guard !content.trimmingCharacters(in: .whitespaces).isEmpty else { return line }
+
+    let indentation = String(content.prefix { $0 == " " || $0 == "\t" })
+    var body = String(content.dropFirst(indentation.count))
+    let patterns = [
+      #"^- \[[ xX]\]\s*"#,
+      #"^[-+*]\s+"#,
+      #"^\d+[.)]\s+"#
+    ]
+    for pattern in patterns {
+      if let range = body.range(of: pattern, options: .regularExpression) {
+        body.removeSubrange(range)
+        break
+      }
+    }
+
+    return indentation + "- [ ] " + body + (hasNewline ? "\n" : "")
+  }
+}
+
 private struct MarkdownToolbarBus {
   let documentId: String
 
@@ -159,6 +210,10 @@ private struct MarkdownToolbarBus {
     NotificationCenter.default.post(name: notificationName(for: command), object: nil)
   }
 
+  var taskListRequest: Notification.Name {
+    name("taskList")
+  }
+
   private func notificationName(for command: Command) -> Notification.Name {
     switch command {
     case .bold:
@@ -173,6 +228,8 @@ private struct MarkdownToolbarBus {
       name("unorderedList")
     case .orderedList:
       name("orderedList")
+    case .taskList:
+      name("taskList")
     }
   }
 
@@ -187,13 +244,15 @@ private struct MarkdownToolbarBus {
     case blockquote
     case unorderedList
     case orderedList
+    case taskList
   }
 }
 
 private struct MarkdownSelectionToolbar: View {
   var bus: MarkdownToolbarBus
-  var accentColor: Color
+  var backgroundColor: Color
   var textColor: Color
+  var accentColor: Color
 
   var body: some View {
     HStack(spacing: 2) {
@@ -222,16 +281,20 @@ private struct MarkdownSelectionToolbar: View {
         bus.post(.orderedList)
       }
 
+      toolbarIcon("checklist", help: "待办列表") {
+        bus.post(.taskList)
+      }
+
       toolbarIcon("quote.opening", help: "引用") {
         bus.post(.blockquote)
       }
     }
     .padding(.horizontal, 7)
     .padding(.vertical, 4)
-    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+    .background(backgroundColor, in: RoundedRectangle(cornerRadius: 8))
     .overlay(
       RoundedRectangle(cornerRadius: 8)
-        .stroke(accentColor.opacity(0.22), lineWidth: 1)
+        .stroke(accentColor.opacity(0.72), lineWidth: 1)
     )
     .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 5)
   }
@@ -290,6 +353,7 @@ private struct InlineMarkdownFocusBridge: NSViewRepresentable {
   var isFocused: Bool
   var focusAtStart: Binding<Bool>
   var onFocus: () -> Void
+  var documentId: String
   var listIndentPerLevel: CGFloat
 
   func makeCoordinator() -> Coordinator {
@@ -314,6 +378,7 @@ private struct InlineMarkdownFocusBridge: NSViewRepresentable {
     private var beginEditingObserver: NSObjectProtocol?
     private var selectionObserver: NSObjectProtocol?
     private var textChangeObserver: NSObjectProtocol?
+    private var taskListObserver: NSObjectProtocol?
     private var isApplyingListStyle = false
 
     deinit {
@@ -377,16 +442,28 @@ private struct InlineMarkdownFocusBridge: NSViewRepresentable {
         self.scheduleListIndentFix(for: textView)
       }
 
+      if let parent {
+        taskListObserver = center.addObserver(
+          forName: MarkdownToolbarBus(documentId: parent.documentId).taskListRequest,
+          object: nil,
+          queue: .main
+        ) { [weak self, weak textView] _ in
+          guard let self, let textView else { return }
+          self.applyTaskList(to: textView)
+        }
+      }
+
     }
 
     private func removeObservers() {
       let center = NotificationCenter.default
-      [beginEditingObserver, selectionObserver, textChangeObserver].compactMap { $0 }.forEach {
+      [beginEditingObserver, selectionObserver, textChangeObserver, taskListObserver].compactMap { $0 }.forEach {
         center.removeObserver($0)
       }
       beginEditingObserver = nil
       selectionObserver = nil
       textChangeObserver = nil
+      taskListObserver = nil
     }
 
     private func updateToolbar(for textView: NSTextView, bridgeView: NSView) {
@@ -417,6 +494,19 @@ private struct InlineMarkdownFocusBridge: NSViewRepresentable {
       )
 
       parent.selectionToolbar.wrappedValue = MarkdownSelectionToolbarState(rect: flippedRect)
+    }
+
+    private func applyTaskList(to textView: NSTextView) {
+      let text = textView.string as NSString
+      let selectedRange = textView.selectedRange()
+      guard let change = MarkdownTaskList.replacement(in: text, selectedRange: selectedRange),
+            textView.shouldChangeText(in: change.range, replacementString: change.text)
+      else { return }
+
+      textView.replaceCharacters(in: change.range, with: change.text)
+      textView.didChangeText()
+      textView.setSelectedRange(NSRange(location: change.range.location, length: (change.text as NSString).length))
+      scheduleListIndentFix(for: textView)
     }
 
     private func scheduleListIndentFix(for textView: NSTextView) {

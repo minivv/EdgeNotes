@@ -19,6 +19,9 @@ struct ThemePreset: Identifiable, Hashable {
   var noteTextColors: [Color?] = []
   var noteSecondaryTextColors: [Color?] = []
   var noteAccentColors: [Color?] = []
+  var selectionToolbarBackground: Color?
+  var selectionToolbarText: Color?
+  var selectionToolbarAccent: Color?
 
   static let arctic = ThemePreset(name: "Arctic", background: Color(red: 0.93, green: 0.97, blue: 1.00), card: .white, text: Color(red: 0.18, green: 0.22, blue: 0.25), accent: Color(red: 0.26, green: 0.52, blue: 0.68))
   static let classic = ThemePreset(name: "Classic", background: .white, card: .white, text: Color(red: 0.12, green: 0.12, blue: 0.13), accent: Color(red: 0.37, green: 0.64, blue: 0.82))
@@ -47,6 +50,10 @@ struct ThemePreset: Identifiable, Hashable {
     return allCases.first { $0.name == name } ?? .edge
   }
 
+  static func named(_ name: String, customizationsData: String) -> ThemePreset {
+    named(name).customized(using: ThemeCustomizations(json: customizationsData))
+  }
+
   func noteFill(for color: NoteColor) -> Color {
     let index = noteColorIndex(for: color)
 
@@ -72,26 +79,19 @@ struct ThemePreset: Identifiable, Hashable {
   }
 
   func noteText(for color: NoteColor) -> Color {
-    let preferred = noteColorValue(noteTextColors, for: color) ?? text
-    return readableText(on: noteFill(for: color), preferred: preferred)
+    noteColorValue(noteTextColors, for: color) ?? text
   }
 
   func noteSecondaryText(for color: NoteColor) -> Color {
-    let fill = noteFill(for: color)
-    if let secondary = noteColorValue(noteSecondaryTextColors, for: color),
-       isReadable(secondary, on: fill, minimumContrast: 3.8) {
-      return secondary
-    }
-    return noteText(for: color).opacity(0.66)
+    noteColorValue(noteSecondaryTextColors, for: color) ?? noteText(for: color).opacity(0.66)
   }
 
   func noteAccent(for color: NoteColor) -> Color {
-    let preferred = noteColorValue(noteAccentColors, for: color) ?? accent
-    return readableText(on: noteFill(for: color), preferred: preferred, minimumContrast: 3.0)
+    noteColorValue(noteAccentColors, for: color) ?? accent
   }
 
   var headerText: Color {
-    readableText(on: background, preferred: folderHeaderText ?? text, minimumContrast: 4.0)
+    folderHeaderText ?? text
   }
 
   var headerSecondaryText: Color {
@@ -99,7 +99,7 @@ struct ThemePreset: Identifiable, Hashable {
   }
 
   var headerAccent: Color {
-    readableText(on: background, preferred: folderHeaderButton ?? accent, minimumContrast: 3.0)
+    folderHeaderButton ?? accent
   }
 
   var folderFill: Color {
@@ -107,19 +107,27 @@ struct ThemePreset: Identifiable, Hashable {
   }
 
   var folderText: Color {
-    readableText(on: folderFill, preferred: folderListText ?? text, minimumContrast: 4.0)
+    folderListText ?? text
   }
 
   var folderSecondaryText: Color {
-    if let folderListSecondaryText,
-       isReadable(folderListSecondaryText, on: folderFill, minimumContrast: 3.0) {
-      return folderListSecondaryText
-    }
-    return folderText.opacity(0.66)
+    folderListSecondaryText ?? folderText.opacity(0.66)
   }
 
   var folderAccent: Color {
-    readableText(on: folderFill, preferred: folderListButton ?? accent, minimumContrast: 3.0)
+    folderListButton ?? accent
+  }
+
+  var toolbarFill: Color {
+    selectionToolbarBackground ?? card
+  }
+
+  var toolbarText: Color {
+    selectionToolbarText ?? text
+  }
+
+  var toolbarAccent: Color {
+    selectionToolbarAccent ?? accent
   }
 
   func readableText(on surface: Color, preferred: Color? = nil, minimumContrast: Double = 4.5) -> Color {
@@ -409,7 +417,7 @@ private extension Optional where Wrapped == [ExternalColorSet] {
   }
 }
 
-private extension Color {
+extension Color {
   init?(hex: String?, opaque: Bool = false) {
     guard var value = hex?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
       return nil
@@ -442,6 +450,15 @@ private extension Color {
     }
 
     self.init(.sRGB, red: red, green: green, blue: blue, opacity: alpha)
+  }
+
+  var themeHex: String? {
+    guard let converted = NSColor(self).usingColorSpace(.sRGB) else { return nil }
+    let red = Int(round(converted.redComponent * 255))
+    let green = Int(round(converted.greenComponent * 255))
+    let blue = Int(round(converted.blueComponent * 255))
+    let alpha = Int(round(converted.alphaComponent * 255))
+    return String(format: "#%02X%02X%02X%02X", red, green, blue, alpha)
   }
 }
 
@@ -544,10 +561,10 @@ struct ThemeCard: View {
       .overlay(alignment: .leading) {
         VStack(alignment: .leading, spacing: 4) {
           RoundedRectangle(cornerRadius: 2)
-            .fill(theme.readableText(on: theme.card).opacity(0.88))
+            .fill(theme.text.opacity(0.88))
             .frame(width: 22, height: 3)
           RoundedRectangle(cornerRadius: 2)
-            .fill(theme.readableText(on: theme.card).opacity(0.48))
+            .fill(theme.text.opacity(0.48))
             .frame(width: 27, height: 3)
         }
         .padding(.leading, 6)

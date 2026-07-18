@@ -147,6 +147,17 @@ final class EdgePanelCoordinator: NSObject, ObservableObject {
     }
   }
 
+  func showPinnedForSettingsPreview() {
+    if !isPanelPinned {
+      isPanelPinned = true
+    }
+    cancelAutoHide()
+    stopOutsideTrackingTimer()
+
+    guard notesPanelWindow?.isVisible != true else { return }
+    showPanel(activate: false)
+  }
+
   func collapseTriggerDidChange() {
     cancelAutoHide()
     updateOutsideTrackingForCollapseTrigger()

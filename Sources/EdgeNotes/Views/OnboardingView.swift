@@ -15,6 +15,7 @@ struct OnboardingView: View {
 
   @AppStorage(EdgePanelSettings.Key.side) private var sideRaw = EdgeSide.right.rawValue
   @AppStorage(AppPreferences.Key.themeName) private var themeName = "Edge"
+  @AppStorage(AppPreferences.Key.themeCustomizations) private var themeCustomizations = ""
   @AppStorage(BackupSettings.Key.token) private var githubToken = ""
   @AppStorage(BackupSettings.Key.gistID) private var gistID = ""
   @AppStorage(BackupSettings.Key.autoEnabled) private var autoBackupEnabled = false
@@ -122,7 +123,8 @@ struct OnboardingView: View {
           .font(.system(size: 46, weight: .bold))
         ScrollView {
           LazyVGrid(columns: Array(repeating: GridItem(.fixed(104), spacing: 18), count: 5), spacing: 20) {
-            ForEach(ThemePreset.allCases) { theme in
+          ForEach(ThemePreset.allCases) { baseTheme in
+            let theme = baseTheme.customized(using: ThemeCustomizations(json: themeCustomizations))
               ThemeChoice(theme: theme, selected: themeName == theme.name) {
                 themeName = theme.name
               }

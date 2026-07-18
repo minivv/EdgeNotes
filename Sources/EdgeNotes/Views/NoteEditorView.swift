@@ -3,11 +3,12 @@ import SwiftUI
 struct NoteEditorView: View {
   @EnvironmentObject private var store: NotesStore
   @AppStorage(AppPreferences.Key.themeName) private var themeName = "Edge"
+  @AppStorage(AppPreferences.Key.themeCustomizations) private var themeCustomizations = ""
   @State private var editorHeight: CGFloat = 320
   var compact: Bool
 
   private var theme: ThemePreset {
-    ThemePreset.named(themeName)
+    ThemePreset.named(themeName, customizationsData: themeCustomizations)
   }
 
   var body: some View {
@@ -33,18 +34,30 @@ struct NoteEditorView: View {
             height: $editorHeight,
             textColor: noteText,
             accentColor: noteAccent,
+            toolbarBackgroundColor: theme.toolbarFill,
+            toolbarTextColor: theme.toolbarText,
+            toolbarAccentColor: theme.toolbarAccent,
             fontSize: compact ? 14 : 15,
             minHeight: compact ? 220 : 320,
             documentId: note.id.uuidString,
             fitsContent: false
           )
-          .id("\(note.id.uuidString)-\(theme.name)-\(note.color.rawValue)")
           .frame(minHeight: compact ? 220 : 320)
           .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
           .padding(.horizontal, compact ? 10 : 16)
           .padding(.vertical, 12)
           .foregroundStyle(noteText)
-          .background(noteFill)
+          .background {
+            if note.color == .graphite {
+              Rectangle()
+                .fill(theme.card)
+                .overlay {
+                  Rectangle().fill(noteFill)
+                }
+            } else {
+              Rectangle().fill(noteFill)
+            }
+          }
         }
       } else {
         ContentUnavailableView(

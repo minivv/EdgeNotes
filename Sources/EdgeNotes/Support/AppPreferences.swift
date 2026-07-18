@@ -4,6 +4,7 @@ enum AppPreferences {
   enum Key {
     static let didCompleteOnboarding = "app.didCompleteOnboarding"
     static let themeName = "appearance.themeName"
+    static let themeCustomizations = "appearance.themeCustomizations"
     static let noteStyle = "appearance.noteStyle"
     static let markdownMarksHidden = "text.markdownMarksHidden"
     static let menuBarIconMode = "edgePanel.menuBarIconMode"
