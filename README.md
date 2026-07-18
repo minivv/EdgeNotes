@@ -110,9 +110,16 @@ edgenotes --help
 edgenotes notes --help
 edgenotes notes list --json
 edgenotes notes create --title "随手记" --body "稍后整理"
+edgenotes notes create --title "项目记录" --folder "工作"
+edgenotes notes update "随手记" --body "新的内容"
+edgenotes notes append "随手记" --text "继续补充"
+edgenotes notes update "随手记" --folder "工作"
 ```
 
 CLI 不会直接修改 `notes.json`；所有读写都经由 EdgeNotes 应用执行。可随时在同一设置页面卸载命令行工具并关闭服务。
+未指定 `--folder` 创建笔记时，会自动创建或复用侧边栏中的“新建文件夹”；脚本需要固定目标时可以显式传入文件夹名称或 UUID。
+对于创建和更新命令，指定的文件夹名称不存在时会自动创建；文件夹 UUID 则必须已经存在。
+读取或修改笔记时可以使用 UUID 或完整标题；如果存在重名笔记，CLI 会提示改用 UUID。
 
 ## 许可证
 

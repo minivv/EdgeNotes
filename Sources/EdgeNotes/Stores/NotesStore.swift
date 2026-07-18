@@ -283,6 +283,19 @@ final class NotesStore: ObservableObject {
     save()
   }
 
+  func moveNote(_ id: UUID, to folderID: UUID?) {
+    guard let index = notes.firstIndex(where: { $0.id == id }) else { return }
+    notes[index].folderID = folderID
+    notes[index].sortIndex = nextNoteSortIndex(in: folderID)
+    notes[index].updatedAt = Date()
+    if selectedNoteID == id,
+       let selectedFolderID,
+       selectedFolderID != folderID {
+      selectedNoteID = visibleNotes().first(where: { $0.id != id })?.id
+    }
+    save()
+  }
+
   func moveVisibleNotes(from offsets: IndexSet, to destination: Int) {
     guard searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
     var ordered = visibleNotes(includeSearch: false)

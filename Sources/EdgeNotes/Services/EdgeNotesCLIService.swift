@@ -62,11 +62,16 @@ final class CLIRequestRouter {
       return CLIResult(notes: notes.map(noteDTO))
 
     case .notesGet:
-      return CLIResult(note: noteDTO(try note(id: parameters.noteID)))
+      return CLIResult(note: noteDTO(try requestedNote(parameters)))
 
     case .notesCreate:
       let title = try requiredNonempty(parameters.title, label: "笔记标题")
-      let folderID = try resolveFolder(parameters.folder)
+      let folderID: UUID?
+      if let folder = parameters.folder {
+        folderID = try resolveOrCreateFolder(folder)
+      } else {
+        folderID = defaultCLIFolderID()
+      }
       let color = try resolveColor(parameters.color ?? NoteColor.graphite.rawValue)
       let id = store.createNote(
         title: title,
@@ -77,7 +82,7 @@ final class CLIRequestRouter {
       return CLIResult(note: noteDTO(try note(id: id)))
 
     case .notesAppend:
-      let existing = try note(id: parameters.noteID)
+      let existing = try requestedNote(parameters)
       guard let text = parameters.text else {
         throw failure("invalid_parameter", "缺少要追加的文本")
       }
@@ -86,27 +91,40 @@ final class CLIRequestRouter {
       return CLIResult(note: noteDTO(try note(id: existing.id)))
 
     case .notesUpdate:
-      let existing = try note(id: parameters.noteID)
-      guard parameters.title != nil || parameters.body != nil else {
-        throw failure("invalid_parameter", "至少需要提供 --title、--body、--body-file 或 --stdin 之一")
+      let existing = try requestedNote(parameters)
+      guard parameters.title != nil
+        || parameters.body != nil
+        || parameters.folder != nil
+        || parameters.color != nil
+      else {
+        throw failure(
+          "invalid_parameter",
+          "至少需要提供 --title、--body、--body-file、--stdin、--folder 或 --color 之一"
+        )
       }
       if let title = parameters.title, title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
         throw failure("invalid_parameter", "笔记标题不能为空")
       }
       store.updateNote(existing.id, title: parameters.title, body: parameters.body)
+      if let folder = parameters.folder {
+        store.moveNote(existing.id, to: try resolveOrCreateFolder(folder))
+      }
+      if let color = parameters.color {
+        store.setNoteColor(existing.id, color: try resolveColor(color))
+      }
       return CLIResult(note: noteDTO(try note(id: existing.id)))
 
     case .notesOpen:
-      let existing = try note(id: parameters.noteID)
+      let existing = try requestedNote(parameters)
       openNoteHandler(existing.id)
       return CLIResult(note: noteDTO(existing), message: "已在 EdgeNotes 中打开笔记")
 
     case .tasksList:
-      let existing = try note(id: parameters.noteID)
+      let existing = try requestedNote(parameters)
       return CLIResult(tasks: store.taskLines(for: existing).map(taskDTO))
 
     case .tasksToggle:
-      let existing = try note(id: parameters.noteID)
+      let existing = try requestedNote(parameters)
       guard let lineIndex = parameters.lineIndex, lineIndex >= 0 else {
         throw failure("invalid_parameter", "行号必须是大于或等于 0 的整数")
       }
@@ -131,6 +149,31 @@ final class CLIRequestRouter {
     return note
   }
 
+  private func requestedNote(_ parameters: CLIParameters) throws -> Note {
+    if let noteID = parameters.noteID {
+      return try note(id: noteID)
+    }
+    guard let selector = parameters.note?.trimmingCharacters(in: .whitespacesAndNewlines),
+          !selector.isEmpty
+    else {
+      throw failure("invalid_parameter", "缺少笔记 ID 或标题")
+    }
+    if let noteID = UUID(uuidString: selector) {
+      return try note(id: noteID)
+    }
+
+    let matches = store.notes.filter {
+      $0.title.compare(selector, options: .caseInsensitive) == .orderedSame
+    }
+    guard !matches.isEmpty else {
+      throw failure("not_found", "找不到笔记：\(selector)")
+    }
+    guard matches.count == 1 else {
+      throw failure("ambiguous_note", "有多个标题为“\(selector)”的笔记，请改用笔记 ID")
+    }
+    return matches[0]
+  }
+
   private func resolveFolder(_ selector: String?) throws -> UUID? {
     guard let selector else { return nil }
     let value = selector.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -153,6 +196,40 @@ final class CLIRequestRouter {
       throw failure("ambiguous_folder", "有多个同名文件夹，请改用文件夹 ID：\(value)")
     }
     return matches[0].id
+  }
+
+  private func defaultCLIFolderID() -> UUID {
+    let defaultName = "新建文件夹"
+    if let folder = store.sortedFolders.first(where: {
+      $0.name.compare(defaultName, options: .caseInsensitive) == .orderedSame
+    }) {
+      return folder.id
+    }
+    return store.createFolder(name: defaultName, selectCreatedFolder: false)
+  }
+
+  private func resolveOrCreateFolder(_ selector: String) throws -> UUID {
+    let value = selector.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !value.isEmpty else {
+      throw failure("invalid_parameter", "文件夹 ID 或名称不能为空")
+    }
+    if UUID(uuidString: value) != nil {
+      guard let folderID = try resolveFolder(value) else {
+        throw failure("not_found", "找不到文件夹：\(value)")
+      }
+      return folderID
+    }
+
+    let matches = store.folders.filter {
+      $0.name.compare(value, options: .caseInsensitive) == .orderedSame
+    }
+    guard matches.count <= 1 else {
+      throw failure("ambiguous_folder", "有多个同名文件夹，请改用文件夹 ID：\(value)")
+    }
+    if let folder = matches.first {
+      return folder.id
+    }
+    return store.createFolder(name: value, selectCreatedFolder: false)
   }
 
   private func resolveColor(_ value: String) throws -> NoteColor {

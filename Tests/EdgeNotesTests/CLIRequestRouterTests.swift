@@ -33,6 +33,56 @@ final class CLIRequestRouterTests: XCTestCase {
   }
 
   @MainActor
+  func testCreateWithoutFolderCreatesAndReusesVisibleDefaultFolder() throws {
+    let fixture = makeFixture()
+    defer { fixture.cleanup() }
+    let store = fixture.store
+    let router = CLIRequestRouter(store: store)
+    let firstResponse = router.handle(CLIRequest(
+      method: .notesCreate,
+      parameters: CLIParameters(title: "First CLI note", body: "Hello", color: "graphite")
+    ))
+    let secondResponse = router.handle(CLIRequest(
+      method: .notesCreate,
+      parameters: CLIParameters(title: "Second CLI note", body: "Hello", color: "graphite")
+    ))
+
+    let defaultFolders = store.folders.filter { $0.name == "新建文件夹" }
+    let defaultFolder = try XCTUnwrap(defaultFolders.first)
+
+    XCTAssertNil(firstResponse.error)
+    XCTAssertNil(secondResponse.error)
+    XCTAssertEqual(defaultFolders.count, 1)
+    XCTAssertEqual(firstResponse.result?.note?.folderID, defaultFolder.id)
+    XCTAssertEqual(secondResponse.result?.note?.folderID, defaultFolder.id)
+    XCTAssertEqual(firstResponse.result?.note?.folderName, "新建文件夹")
+    XCTAssertEqual(secondResponse.result?.note?.folderName, "新建文件夹")
+  }
+
+  @MainActor
+  func testCreateWithMissingFolderNameCreatesFolder() throws {
+    let fixture = makeFixture()
+    defer { fixture.cleanup() }
+    let store = fixture.store
+    let router = CLIRequestRouter(store: store)
+
+    let response = router.handle(CLIRequest(
+      method: .notesCreate,
+      parameters: CLIParameters(
+        folder: "新文件夹",
+        title: "Created with its folder",
+        body: "Hello",
+        color: "mint"
+      )
+    ))
+
+    let folder = try XCTUnwrap(store.folders.first(where: { $0.name == "新文件夹" }))
+    XCTAssertNil(response.error)
+    XCTAssertEqual(response.result?.note?.folderID, folder.id)
+    XCTAssertEqual(response.result?.note?.folderName, "新文件夹")
+  }
+
+  @MainActor
   func testSearchAppendUpdateAndToggleTask() throws {
     let fixture = makeFixture()
     defer { fixture.cleanup() }
@@ -54,10 +104,12 @@ final class CLIRequestRouterTests: XCTestCase {
 
     let update = router.handle(CLIRequest(
       method: .notesUpdate,
-      parameters: CLIParameters(noteID: quickCapture.id, title: "Updated")
+      parameters: CLIParameters(note: quickCapture.title, folder: "Projects", title: "Updated", color: "sky")
     ))
     XCTAssertEqual(update.result?.note?.title, "Updated")
     XCTAssertTrue(update.result?.note?.body.hasSuffix("\nAppended") == true)
+    XCTAssertEqual(update.result?.note?.folderName, "Projects")
+    XCTAssertEqual(update.result?.note?.color, "sky")
 
     let taskBefore = try XCTUnwrap(store.taskLines(for: try XCTUnwrap(store.notes.first(where: { $0.id == quickCapture.id }))).first)
     let toggle = router.handle(CLIRequest(
@@ -65,6 +117,24 @@ final class CLIRequestRouterTests: XCTestCase {
       parameters: CLIParameters(noteID: quickCapture.id, lineIndex: taskBefore.lineIndex)
     ))
     XCTAssertEqual(toggle.result?.task?.isDone, !taskBefore.isDone)
+  }
+
+  @MainActor
+  func testDuplicateNoteTitlesRequireID() throws {
+    let fixture = makeFixture()
+    defer { fixture.cleanup() }
+    let store = fixture.store
+    let router = CLIRequestRouter(store: store)
+    _ = store.createNote(title: "重复标题", body: "One", folderID: nil, color: .graphite)
+    _ = store.createNote(title: "重复标题", body: "Two", folderID: nil, color: .graphite)
+
+    let response = router.handle(CLIRequest(
+      method: .notesGet,
+      parameters: CLIParameters(note: "重复标题")
+    ))
+
+    XCTAssertEqual(response.error?.code, "ambiguous_note")
+    XCTAssertTrue(response.error?.message.contains("笔记 ID") == true)
   }
 
   @MainActor

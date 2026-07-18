@@ -20,7 +20,7 @@ struct EdgeNotesCommand: ParsableCommand {
       自动化脚本可加 --json 获取稳定的 JSON 输出。设置 EDGENOTES_SOCKET 可覆盖默认 Socket 路径。
       使用“edgenotes <命令> --help”查看每一级命令的完整说明。
       """,
-    version: "0.2.0",
+    version: "0.2.1",
     subcommands: [Status.self, Folders.self, Notes.self, Tasks.self]
   )
 }
@@ -102,7 +102,7 @@ extension EdgeNotesCommand {
     static let configuration = CommandConfiguration(
       abstract: "查找、读取、创建和编辑笔记。",
       discussion: """
-        笔记 ID 是后续 get、append、update、open 和 tasks 命令使用的稳定 UUID。
+        get、append、update、open 和 tasks 命令接受笔记 UUID 或完整标题；存在重名时请使用 UUID。
         create 与 update 的正文可直接传入、从文件读取，或通过标准输入传入。
 
         示例：
@@ -194,8 +194,8 @@ extension EdgeNotesCommand {
       abstract: "读取一篇完整笔记。"
     )
 
-    @Argument(help: "笔记 UUID。可从 notes list 或 notes search 获取。")
-    var noteID: String
+    @Argument(help: "笔记 UUID 或完整标题。存在重名时请使用 UUID。")
+    var note: String
 
     @Flag(name: .long, help: "输出完整笔记 JSON。")
     var json = false
@@ -203,7 +203,7 @@ extension EdgeNotesCommand {
     mutating func run() throws {
       let result = try CLIRuntime.request(
         .notesGet,
-        parameters: CLIParameters(noteID: try parseNoteID(noteID))
+        parameters: CLIParameters(note: note)
       )
       guard let note = result.note else { throw CLIUserError("EdgeNotes 没有返回笔记") }
       if json {
@@ -220,7 +220,9 @@ extension EdgeNotesCommand {
       abstract: "创建一篇笔记。",
       discussion: """
         --body、--body-file 和 --stdin 互斥；都不提供时创建空正文。
-        未提供 --folder 时，笔记不归入任何文件夹。未提供 --color 时使用 graphite。
+        未提供 --folder 时，笔记会加入侧边栏中的“新建文件夹”；该文件夹不存在时会自动创建。
+        显式提供文件夹名称时，存在就使用，不存在就自动创建；UUID 则必须指向现有文件夹。
+        后续未指定文件夹的笔记会继续复用“新建文件夹”。未提供 --color 时使用 graphite。
 
         示例：
           edgenotes notes create --title "想法" --body "先记下来"
@@ -234,7 +236,7 @@ extension EdgeNotesCommand {
     @OptionGroup
     var bodyInput: OptionalBodyInput
 
-    @Option(name: .long, help: "文件夹 UUID 或完整名称。")
+    @Option(name: .long, help: "文件夹 UUID 或完整名称；名称不存在时自动创建。")
     var folder: String?
 
     @Option(name: .long, help: "笔记颜色：graphite、amber、mint、sky、rose 或 violet。")
@@ -253,7 +255,7 @@ extension EdgeNotesCommand {
       if json {
         try CLIOutput.json(note)
       } else {
-        print("已创建笔记：\(note.title)  \(note.id.uuidString)")
+        print("已创建笔记：\(note.title)  \(note.id.uuidString)  文件夹：\(note.folderName ?? "未归档")")
       }
     }
   }
@@ -271,8 +273,8 @@ extension EdgeNotesCommand {
         """
     )
 
-    @Argument(help: "要修改的笔记 UUID。")
-    var noteID: String
+    @Argument(help: "笔记 UUID 或完整标题。存在重名时请使用 UUID。")
+    var note: String
 
     @Option(name: .long, help: "直接提供要追加的文本。")
     var text: String?
@@ -289,7 +291,7 @@ extension EdgeNotesCommand {
       let addition = try text ?? readStandardInput()
       let result = try CLIRuntime.request(
         .notesAppend,
-        parameters: CLIParameters(noteID: try parseNoteID(noteID), text: addition)
+        parameters: CLIParameters(note: note, text: addition)
       )
       guard let note = result.note else { throw CLIUserError("EdgeNotes 没有返回更新结果") }
       if json {
@@ -303,19 +305,21 @@ extension EdgeNotesCommand {
   struct NoteUpdate: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "update",
-      abstract: "替换笔记标题和/或正文。",
+      abstract: "更新笔记标题、正文、文件夹或颜色。",
       discussion: """
         正文参数 --body、--body-file 和 --stdin 互斥。只更新标题时不需要正文参数。
         append 用于保留现有正文并追加；update 的正文参数会替换完整正文。
+        --folder 可以把现有笔记移动到指定文件夹；名称不存在时会自动创建。
 
         示例：
           edgenotes notes update NOTE_ID --title "新标题"
           edgenotes notes update NOTE_ID --body-file revised.md
+          edgenotes notes update NOTE_ID --folder "工作记录"
         """
     )
 
-    @Argument(help: "要修改的笔记 UUID。")
-    var noteID: String
+    @Argument(help: "笔记 UUID 或完整标题。存在重名时请使用 UUID。")
+    var note: String
 
     @Option(name: .long, help: "新的笔记标题。")
     var title: String?
@@ -323,23 +327,35 @@ extension EdgeNotesCommand {
     @OptionGroup
     var bodyInput: OptionalBodyInput
 
+    @Option(name: .long, help: "将笔记移动到指定文件夹；名称不存在时自动创建。")
+    var folder: String?
+
+    @Option(name: .long, help: "新的笔记颜色：graphite、amber、mint、sky、rose 或 violet。")
+    var color: String?
+
     @Flag(name: .long, help: "输出更新后笔记的 JSON。")
     var json = false
 
     mutating func run() throws {
       let body = try bodyInput.read()
-      guard title != nil || body != nil else {
-        throw ValidationError("至少需要提供 --title、--body、--body-file 或 --stdin 之一")
+      guard title != nil || body != nil || folder != nil || color != nil else {
+        throw ValidationError("至少需要提供 --title、--body、--body-file、--stdin、--folder 或 --color 之一")
       }
       let result = try CLIRuntime.request(
         .notesUpdate,
-        parameters: CLIParameters(noteID: try parseNoteID(noteID), title: title, body: body)
+        parameters: CLIParameters(
+          note: note,
+          folder: folder,
+          title: title,
+          body: body,
+          color: color
+        )
       )
       guard let note = result.note else { throw CLIUserError("EdgeNotes 没有返回更新结果") }
       if json {
         try CLIOutput.json(note)
       } else {
-        print("已更新：\(note.title)  \(note.id.uuidString)")
+        print("已更新：\(note.title)  \(note.id.uuidString)  文件夹：\(note.folderName ?? "未归档")")
       }
     }
   }
@@ -350,13 +366,13 @@ extension EdgeNotesCommand {
       abstract: "在 EdgeNotes 侧边栏中定位并打开笔记。"
     )
 
-    @Argument(help: "要打开的笔记 UUID。")
-    var noteID: String
+    @Argument(help: "笔记 UUID 或完整标题。存在重名时请使用 UUID。")
+    var note: String
 
     mutating func run() throws {
       let result = try CLIRuntime.request(
         .notesOpen,
-        parameters: CLIParameters(noteID: try parseNoteID(noteID))
+        parameters: CLIParameters(note: note)
       )
       print(result.message ?? "已在 EdgeNotes 中打开笔记")
     }
@@ -379,8 +395,8 @@ extension EdgeNotesCommand {
       abstract: "列出一篇笔记中的所有 Markdown 待办。"
     )
 
-    @Argument(help: "笔记 UUID。")
-    var noteID: String
+    @Argument(help: "笔记 UUID 或完整标题。存在重名时请使用 UUID。")
+    var note: String
 
     @Flag(name: .long, help: "输出待办数组 JSON。")
     var json = false
@@ -388,7 +404,7 @@ extension EdgeNotesCommand {
     mutating func run() throws {
       let tasks = try CLIRuntime.request(
         .tasksList,
-        parameters: CLIParameters(noteID: try parseNoteID(noteID))
+        parameters: CLIParameters(note: note)
       ).tasks ?? []
       if json {
         try CLIOutput.json(tasks)
@@ -405,8 +421,8 @@ extension EdgeNotesCommand {
       discussion: "示例：edgenotes tasks toggle NOTE_ID 4"
     )
 
-    @Argument(help: "笔记 UUID。")
-    var noteID: String
+    @Argument(help: "笔记 UUID 或完整标题。存在重名时请使用 UUID。")
+    var note: String
 
     @Argument(help: "从 0 开始的正文源文件行号；使用 tasks list 查看。")
     var lineIndex: Int
@@ -417,7 +433,7 @@ extension EdgeNotesCommand {
     mutating func run() throws {
       let result = try CLIRuntime.request(
         .tasksToggle,
-        parameters: CLIParameters(noteID: try parseNoteID(noteID), lineIndex: lineIndex)
+        parameters: CLIParameters(note: note, lineIndex: lineIndex)
       )
       guard let task = result.task else { throw CLIUserError("EdgeNotes 没有返回待办更新结果") }
       if json {
@@ -600,13 +616,6 @@ private struct CLIUserError: Error, CustomStringConvertible, LocalizedError {
   }
 
   var errorDescription: String? { description }
-}
-
-private func parseNoteID(_ value: String) throws -> UUID {
-  guard let id = UUID(uuidString: value) else {
-    throw ValidationError("笔记 ID 必须是有效 UUID：\(value)")
-  }
-  return id
 }
 
 private func readStandardInput() throws -> String {

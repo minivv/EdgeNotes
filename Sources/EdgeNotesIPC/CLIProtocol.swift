@@ -40,6 +40,7 @@ public struct CLIRequest: Codable, Sendable {
 
 public struct CLIParameters: Codable, Sendable {
   public var noteID: UUID?
+  public var note: String?
   public var folder: String?
   public var title: String?
   public var body: String?
@@ -51,6 +52,7 @@ public struct CLIParameters: Codable, Sendable {
 
   public init(
     noteID: UUID? = nil,
+    note: String? = nil,
     folder: String? = nil,
     title: String? = nil,
     body: String? = nil,
@@ -61,6 +63,7 @@ public struct CLIParameters: Codable, Sendable {
     limit: Int? = nil
   ) {
     self.noteID = noteID
+    self.note = note
     self.folder = folder
     self.title = title
     self.body = body
