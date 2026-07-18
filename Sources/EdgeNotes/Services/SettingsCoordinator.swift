@@ -7,22 +7,34 @@ final class SettingsCoordinator: ObservableObject {
   private weak var backupService: GistBackupService?
   private weak var panelCoordinator: EdgePanelCoordinator?
   private weak var onboardingCoordinator: OnboardingCoordinator?
+  private weak var cliService: EdgeNotesCLIService?
   private var window: NSWindow?
+
+  var isWindowVisible: Bool {
+    window?.isVisible == true
+  }
 
   func configure(
     store: NotesStore,
     backupService: GistBackupService,
     panelCoordinator: EdgePanelCoordinator,
-    onboardingCoordinator: OnboardingCoordinator
+    onboardingCoordinator: OnboardingCoordinator,
+    cliService: EdgeNotesCLIService
   ) {
     self.store = store
     self.backupService = backupService
     self.panelCoordinator = panelCoordinator
     self.onboardingCoordinator = onboardingCoordinator
+    self.cliService = cliService
   }
 
   func show() {
-    guard let store, let backupService, let panelCoordinator, let onboardingCoordinator else { return }
+    guard let store,
+          let backupService,
+          let panelCoordinator,
+          let onboardingCoordinator,
+          let cliService
+    else { return }
     panelCoordinator.showPinnedForSettingsPreview()
 
     if let window {
@@ -47,9 +59,14 @@ final class SettingsCoordinator: ObservableObject {
         .environmentObject(backupService)
         .environmentObject(panelCoordinator)
         .environmentObject(onboardingCoordinator)
+        .environmentObject(cliService)
     )
     self.window = window
     window.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
+  }
+
+  func close() {
+    window?.close()
   }
 }

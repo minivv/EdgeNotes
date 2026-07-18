@@ -9,15 +9,19 @@ final class AppModel: ObservableObject {
   let statusBarController: StatusBarController
   let settingsCoordinator: SettingsCoordinator
   let updateService: AppUpdateService
+  let cliService: EdgeNotesCLIService
 
   init() {
-    store = NotesStore()
-    panelCoordinator = EdgePanelCoordinator()
+    let notesStore = NotesStore()
+    let edgePanelCoordinator = EdgePanelCoordinator()
+    store = notesStore
+    panelCoordinator = edgePanelCoordinator
     backupService = GistBackupService()
     onboardingCoordinator = OnboardingCoordinator()
     statusBarController = StatusBarController()
     settingsCoordinator = SettingsCoordinator()
     updateService = AppUpdateService()
+    cliService = EdgeNotesCLIService(store: notesStore, panelCoordinator: edgePanelCoordinator)
 
     panelCoordinator.configure(store: store, settingsCoordinator: settingsCoordinator)
     backupService.configure(store: store)
@@ -25,7 +29,8 @@ final class AppModel: ObservableObject {
       store: store,
       backupService: backupService,
       panelCoordinator: panelCoordinator,
-      onboardingCoordinator: onboardingCoordinator
+      onboardingCoordinator: onboardingCoordinator,
+      cliService: cliService
     )
     onboardingCoordinator.configure(store: store, panelCoordinator: panelCoordinator)
     statusBarController.configure(
@@ -33,6 +38,7 @@ final class AppModel: ObservableObject {
       settingsCoordinator: settingsCoordinator,
       updateService: updateService
     )
+    cliService.startIfInstalled()
 
     DispatchQueue.main.async { [onboardingCoordinator] in
       onboardingCoordinator.showIfNeeded()

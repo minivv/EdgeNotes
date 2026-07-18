@@ -89,6 +89,31 @@ EdgeNotes.app/Contents/Resources/themes/
 
 EdgeNotes 可以使用 GitHub Gist 做自动备份。你可以在引导流程或设置中填入拥有 `gist` 权限的 GitHub token；Gist ID 可以留空，首次备份时会自动创建。
 
+## 命令行工具
+
+EdgeNotes 内置 `edgenotes` CLI，但默认不会启用。打开“设置 → 命令行”，点击“安装命令行工具”后，会在以下位置创建符号链接并启动仅限当前用户访问的本地服务：
+
+```text
+~/.local/bin/edgenotes
+```
+
+如果 `~/.local/bin` 尚未加入终端的 `PATH`，请将下面一行加入 `~/.zshrc`：
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+CLI 提供分层帮助和 JSON 输出，适合终端操作、Alfred、自动化脚本与 AI 工具调用：
+
+```bash
+edgenotes --help
+edgenotes notes --help
+edgenotes notes list --json
+edgenotes notes create --title "随手记" --body "稍后整理"
+```
+
+CLI 不会直接修改 `notes.json`；所有读写都经由 EdgeNotes 应用执行。可随时在同一设置页面卸载命令行工具并关闭服务。
+
 ## 许可证
 
 EdgeNotes 基于 [MIT License](LICENSE) 开源。

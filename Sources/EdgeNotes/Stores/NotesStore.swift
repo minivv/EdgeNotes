@@ -75,6 +75,11 @@ final class NotesStore: ObservableObject {
 
   @discardableResult
   func createFolder(name: String = "新建文件夹") -> UUID {
+    createFolder(name: name, selectCreatedFolder: true)
+  }
+
+  @discardableResult
+  func createFolder(name: String, selectCreatedFolder: Bool) -> UUID {
     var folder = NoteFolder(
       name: uniqueFolderName(base: name),
       color: .sky,
@@ -87,7 +92,9 @@ final class NotesStore: ObservableObject {
       folder.sortIndex = 0
     }
     folders.append(folder)
-    selectedFolderID = folder.id
+    if selectCreatedFolder {
+      selectedFolderID = folder.id
+    }
     save()
     return folder.id
   }
@@ -146,8 +153,37 @@ final class NotesStore: ObservableObject {
 
   @discardableResult
   func createNote(title: String = "新建笔记", body: String = "") -> UUID {
-    let folderID = selectedFolderID
-    var sortIndex = sortIndexForNewNote(in: folderID)
+    insertNote(
+      title: title,
+      body: body,
+      folderID: selectedFolderID,
+      color: AppPreferences.defaultNoteColor,
+      useSelectedPosition: true,
+      selectCreatedNote: true
+    )
+  }
+
+  @discardableResult
+  func createNote(title: String, body: String, folderID: UUID?, color: NoteColor) -> UUID {
+    insertNote(
+      title: title,
+      body: body,
+      folderID: folderID,
+      color: color,
+      useSelectedPosition: false,
+      selectCreatedNote: false
+    )
+  }
+
+  private func insertNote(
+    title: String,
+    body: String,
+    folderID: UUID?,
+    color: NoteColor,
+    useSelectedPosition: Bool,
+    selectCreatedNote: Bool
+  ) -> UUID {
+    var sortIndex = sortIndexForNewNote(in: folderID, useSelectedPosition: useSelectedPosition)
     if AppPreferences.newNoteLocation != "bottom" {
       for index in notes.indices where notes[index].folderID == folderID && notes[index].sortIndex >= sortIndex {
         notes[index].sortIndex += 1
@@ -160,11 +196,13 @@ final class NotesStore: ObservableObject {
       folderID: folderID,
       title: title,
       body: body,
-      color: AppPreferences.defaultNoteColor,
+      color: color,
       sortIndex: sortIndex
     )
     notes.append(note)
-    selectedNoteID = note.id
+    if selectCreatedNote {
+      selectedNoteID = note.id
+    }
     save()
     return note.id
   }
@@ -568,12 +606,13 @@ final class NotesStore: ObservableObject {
     return (scoped.map(\.sortIndex).max() ?? -1) + 1
   }
 
-  private func sortIndexForNewNote(in folderID: UUID?) -> Int {
+  private func sortIndexForNewNote(in folderID: UUID?, useSelectedPosition: Bool = true) -> Int {
     guard AppPreferences.newNoteLocation != "bottom" else {
       return nextNoteSortIndex(in: folderID)
     }
 
-    if let selectedNoteID,
+    if useSelectedPosition,
+       let selectedNoteID,
        let selected = notes.first(where: { $0.id == selectedNoteID && $0.folderID == folderID }) {
       return selected.sortIndex
     }

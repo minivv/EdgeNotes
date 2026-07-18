@@ -13,6 +13,7 @@ struct EdgeNotesApp: App {
         .environmentObject(model.backupService)
         .environmentObject(model.panelCoordinator)
         .environmentObject(model.onboardingCoordinator)
+        .environmentObject(model.cliService)
     }
   }
 }

@@ -4,7 +4,7 @@ set -euo pipefail
 MODE="${1:-run}"
 APP_NAME="EdgeNotes"
 BUNDLE_ID="com.codex.EdgeNotes"
-APP_VERSION="${APP_VERSION:-0.1.4}"
+APP_VERSION="${APP_VERSION:-0.2.0}"
 MIN_SYSTEM_VERSION="14.0"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -13,7 +13,9 @@ APP_BUNDLE="$OUTPUT_DIR/$APP_NAME.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"
 APP_RESOURCES="$APP_CONTENTS/Resources"
+APP_SHARED_SUPPORT="$APP_CONTENTS/SharedSupport"
 APP_BINARY="$APP_MACOS/$APP_NAME"
+CLI_BINARY="$APP_SHARED_SUPPORT/bin/edgenotes"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
 APP_ICON="$ROOT_DIR/Sources/EdgeNotes/Resources/EdgeNotes.icns"
 APP_ICON_PNG="$ROOT_DIR/Sources/EdgeNotes/Resources/EdgeNotesIcon.png"
@@ -22,12 +24,16 @@ pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
 swift build --package-path "$ROOT_DIR"
 BUILD_BINARY="$(swift build --package-path "$ROOT_DIR" --show-bin-path)/$APP_NAME"
+BUILD_CLI="$(dirname "$BUILD_BINARY")/edgenotes-cli"
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_MACOS"
 mkdir -p "$APP_RESOURCES"
+mkdir -p "$(dirname "$CLI_BINARY")"
 cp "$BUILD_BINARY" "$APP_BINARY"
+cp "$BUILD_CLI" "$CLI_BINARY"
 chmod +x "$APP_BINARY"
+chmod +x "$CLI_BINARY"
 
 if [ -f "$APP_ICON" ]; then
   cp "$APP_ICON" "$APP_RESOURCES/EdgeNotes.icns"
@@ -116,8 +122,13 @@ case "$MODE" in
     ;;
   --verify|verify)
     open_app
-    sleep 1
-    pgrep -x "$APP_NAME" >/dev/null
+    for _ in {1..20}; do
+      if pgrep -x "$APP_NAME" >/dev/null; then
+        exit 0
+      fi
+      sleep 0.25
+    done
+    exit 1
     ;;
   *)
     echo "usage: $0 [run|--build|--debug|--logs|--telemetry|--verify]" >&2

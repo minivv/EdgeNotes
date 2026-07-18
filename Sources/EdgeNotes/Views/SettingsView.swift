@@ -6,6 +6,7 @@ struct SettingsView: View {
   @EnvironmentObject private var backupService: GistBackupService
   @EnvironmentObject private var panelCoordinator: EdgePanelCoordinator
   @EnvironmentObject private var onboardingCoordinator: OnboardingCoordinator
+  @EnvironmentObject private var cliService: EdgeNotesCLIService
 
   @AppStorage(EdgePanelSettings.Key.side) private var sideRaw = EdgeSide.right.rawValue
   @AppStorage(EdgePanelSettings.Key.screenPreference) private var screenPreference = ScreenPreference.main.rawValue
@@ -41,6 +42,9 @@ struct SettingsView: View {
 
       backupTab
         .tabItem { Label("备份", systemImage: "arrow.triangle.2.circlepath") }
+
+      commandLineTab
+        .tabItem { Label("命令行", systemImage: "terminal") }
 
       dataTab
         .tabItem { Label("数据", systemImage: "externaldrive") }
@@ -284,6 +288,72 @@ struct SettingsView: View {
           .frame(maxWidth: 440, alignment: .trailing)
         }
       }
+    }
+  }
+
+  private var commandLineTab: some View {
+    SettingsPage {
+      VStack(alignment: .leading, spacing: 10) {
+        HStack(spacing: 8) {
+          Image(systemName: "terminal.fill")
+            .foregroundStyle(.blue)
+          Text("EdgeNotes CLI")
+            .font(.headline)
+        }
+        Text("安装后可以从终端、Alfred、脚本和 AI 工具中读取或添加 EdgeNotes 内容。写操作始终由正在运行的 EdgeNotes 应用执行。")
+          .foregroundStyle(.secondary)
+        Text("默认不会开启本地 CLI 服务。安装命令行工具时服务会一并启用，卸载后立即关闭。")
+          .foregroundStyle(.secondary)
+      }
+      .font(.system(size: 14))
+      .padding(18)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color.blue.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+
+      SettingsSection(title: "安装") {
+        SettingsRow(
+          title: cliService.isInstalled ? "已安装" : "尚未安装",
+          detail: cliService.statusMessage
+        ) {
+          if cliService.isInstalled {
+            Button("卸载命令行工具", role: .destructive) {
+              cliService.uninstall()
+            }
+          } else {
+            Button("安装命令行工具") {
+              cliService.install()
+            }
+            .buttonStyle(.borderedProminent)
+          }
+        }
+
+        Divider()
+
+        SettingsRow(title: "安装位置") {
+          Text(EdgeNotesCLIService.installationURL.path)
+            .font(.system(.caption, design: .monospaced))
+            .foregroundStyle(.secondary)
+            .textSelection(.enabled)
+        }
+      }
+
+      SettingsSection(title: "终端配置") {
+        VStack(alignment: .leading, spacing: 10) {
+          Text("如果终端提示找不到 edgenotes，请将下面一行加入 ~/.zshrc，然后重新打开终端：")
+            .foregroundStyle(.secondary)
+          Text("export PATH=\"$HOME/.local/bin:$PATH\"")
+            .font(.system(.body, design: .monospaced))
+            .textSelection(.enabled)
+          Text("安装完成后运行 edgenotes --help 查看全部命令。")
+            .foregroundStyle(.secondary)
+        }
+        .font(.system(size: 13))
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+    }
+    .onAppear {
+      cliService.refreshInstallationState()
     }
   }
 
